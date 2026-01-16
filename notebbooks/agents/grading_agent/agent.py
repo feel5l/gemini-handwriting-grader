@@ -1,7 +1,11 @@
-import os
+"""Grading agent for evaluating student answers."""
+
+import hashlib
+from typing import Optional
 from google.genai import types
 from google.adk.agents import Agent, SequentialAgent
 from pydantic import BaseModel, Field
+
 from ..common import setup_agent_environment, run_agent_with_retry
 from ..ocr_agent.agent import ocr_agent
 import grading_utils
@@ -9,24 +13,40 @@ import grading_utils
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
 
+
 # Pydantic Model
 class GradingResult(BaseModel):
-    """Pydantic model for grading results"""
-    extracted_text: str = Field(description="The student's answer text as extracted/read")
-    similarity_score: float = Field(description="Similarity score from 0 to 1")
-    mark: float = Field(description="Actual mark awarded")
-    reasoning: str = Field(description="Brief explanation of the score")
+    """Pydantic model for grading results."""
+    
+    extracted_text: str = Field(
+        description="The student's answer text as extracted/read"
+    )
+    similarity_score: float = Field(
+        description="Similarity score from 0 to 1"
+    )
+    mark: float = Field(
+        description="Actual mark awarded"
+    )
+    reasoning: str = Field(
+        description="Brief explanation of the score"
+    )
+
 
 # Define Grading Agent
 grading_agent = Agent(
     model="gemini-3-flash-preview",
     name="grading_expert",
-    description="Expert grader for evaluating student answers against a marking scheme.",
-    instruction="""You are an expert grader. Evaluate the student's answer based on the provided question, marking scheme, and total marks.
-
-If this is part of a sequential process (e.g., following OCR), the student's answer will be the input provided to you. The Question, Marking Scheme, and Total Marks will be found in the conversation history (context).
-
-Ensure you populate the 'extracted_text' field with the student's answer you evaluated.""",
+    description="Expert grader for evaluating student answers.",
+    instruction=(
+        "You are an expert grader. Evaluate the student's answer based on "
+        "the provided question, marking scheme, and total marks.\n\n"
+        "If this is part of a sequential process (e.g., following OCR), "
+        "the student's answer will be the input provided to you. "
+        "The Question, Marking Scheme, and Total Marks will be found in "
+        "the conversation history (context).\n\n"
+        "Ensure you populate the 'extracted_text' field with the student's "
+        "answer you evaluated."
+    ),
     output_schema=GradingResult,
     output_key="output",
     generate_content_config=types.GenerateContentConfig(
@@ -37,17 +57,40 @@ Ensure you populate the 'extracted_text' field with the student's answer you eva
     ),
 )
 
+
 # Define Sequential Agent for OCR + Grading
 ocr_grading_agent = SequentialAgent(
     name="ocr_and_grading",
-    description="Sequential agent that first extracts text from an image (OCR) and then grades it.",
+    description=(
+        "Sequential agent that first extracts text from an image (OCR) "
+        "and then grades it."
+    ),
     sub_agents=[ocr_agent, grading_agent],
 )
 
-async def grade_answer_with_ai(question_text, submitted_answer, marking_scheme_text, total_marks, max_retries=3):
-    """Grade a student's answer using the grading agent (Text-only)."""
+
+
+async def grade_answer_with_ai(
+    question_text: str,
+    submitted_answer: str,
+    marking_scheme_text: str,
+    total_marks: float,
+    max_retries: int = 3
+) -> GradingResult:
+    """
+    Grade a student's answer using the grading agent (text-only).
     
-    # --- Caching Logic ---
+    Args:
+        question_text: The question text
+        submitted_answer: Student's submitted answer
+        marking_scheme_text: The marking scheme
+        total_marks: Total marks available
+        max_retries: Maximum retry attempts
+        
+    Returns:
+        GradingResult with mark and reasoning
+    """
+    # Check cache
     cache_key = None
     try:
         cache_key = grading_utils.get_cache_key(
@@ -60,11 +103,10 @@ async def grade_answer_with_ai(question_text, submitted_answer, marking_scheme_t
         )
         cached = grading_utils.get_from_cache(cache_key)
         if cached:
-            logger.info(f"Grading cache hit")
+            logger.info("Grading cache hit")
             return GradingResult(**cached)
     except Exception as e:
         logger.warning(f"Cache lookup failed: {e}")
-    # ---------------------
     
     prompt = f"""<QUESTION>
 {question_text}
@@ -89,7 +131,10 @@ Provide:
 4. mark: Actual mark to award (0 to {total_marks})"""
 
     try:
-        content = types.Content(role="user", parts=[types.Part(text=prompt)])
+        content = types.Content(
+            role="user",
+            parts=[types.Part(text=prompt)]
+        )
         
         result = await run_agent_with_retry(
             agent=grading_agent,
@@ -112,20 +157,39 @@ Provide:
             
     except Exception as e:
         logger.error(f"Grading failed: {e}")
-        return GradingResult(extracted_text=submitted_answer, similarity_score=0, mark=0, reasoning=f"Error: Grading failed - {str(e)}")
+        return GradingResult(
+            extracted_text=submitted_answer,
+            similarity_score=0,
+            mark=0,
+            reasoning=f"Error: Grading failed - {str(e)}"
+        )
 
 
-async def grade_answer_with_ocr_and_ai(question_text, marking_scheme_text, total_marks, image_data, max_retries=3):
+async def grade_answer_with_ocr_and_ai(
+    question_text: str,
+    marking_scheme_text: str,
+    total_marks: float,
+    image_data: bytes,
+    max_retries: int = 3
+) -> GradingResult:
     """
-    Grade a student's answer by first performing OCR on the image and then grading the text.
-    Uses the SequentialAgent 'ocr_grading_agent'.
-    """
+    Grade a student's answer by first performing OCR then grading.
     
-    # --- Caching Logic ---
+    Uses the SequentialAgent 'ocr_grading_agent'.
+    
+    Args:
+        question_text: The question text
+        marking_scheme_text: The marking scheme
+        total_marks: Total marks available
+        image_data: Raw image bytes
+        max_retries: Maximum retry attempts
+        
+    Returns:
+        GradingResult with mark and reasoning
+    """
+    # Check cache
     cache_key = None
     try:
-        # Create a hash of the image
-        import hashlib
         image_hash = hashlib.sha256(image_data).hexdigest()
         
         cache_key = grading_utils.get_cache_key(
@@ -138,14 +202,12 @@ async def grade_answer_with_ocr_and_ai(question_text, marking_scheme_text, total
         )
         cached = grading_utils.get_from_cache(cache_key)
         if cached:
-            logger.info(f"OCR+Grading cache hit")
+            logger.info("OCR+Grading cache hit")
             return GradingResult(**cached)
     except Exception as e:
         logger.warning(f"Cache lookup failed: {e}")
-    # ---------------------
 
-    # Construct the prompt for the first agent (OCR)
-    # We include the grading context so it's available in the history for the second agent (Grading)
+    # Construct prompt with grading context
     prompt = f"""<CONTEXT_FOR_GRADING>
 <QUESTION>
 {question_text}
@@ -159,19 +221,24 @@ async def grade_answer_with_ocr_and_ai(question_text, marking_scheme_text, total
 </CONTEXT_FOR_GRADING>
 
 Please extract the handwritten text from the provided image. 
-(Note: The context above is for the subsequent grading step, please focus on extracting the text in the image)."""
+(Note: The context above is for the subsequent grading step, 
+please focus on extracting the text in the image)."""
 
     try:
         content = types.Content(
             role="user",
             parts=[
-                types.Part(inline_data=types.Blob(mime_type="image/jpeg", data=image_data)),
+                types.Part(
+                    inline_data=types.Blob(
+                        mime_type="image/jpeg",
+                        data=image_data
+                    )
+                ),
                 types.Part(text=prompt)
             ]
         )
         
         # Run the Sequential Agent
-        # The result will be the output of the LAST agent (grading_agent), which is a GradingResult
         result = await run_agent_with_retry(
             agent=ocr_grading_agent,
             user_content=content,
@@ -193,4 +260,10 @@ Please extract the handwritten text from the provided image.
 
     except Exception as e:
         logger.error(f"OCR+Grading failed: {e}")
-        return GradingResult(extracted_text="", similarity_score=0, mark=0, reasoning=f"Error: OCR+Grading failed - {str(e)}")
+        return GradingResult(
+            extracted_text="",
+            similarity_score=0,
+            mark=0,
+            reasoning=f"Error: OCR+Grading failed - {str(e)}"
+        )
+

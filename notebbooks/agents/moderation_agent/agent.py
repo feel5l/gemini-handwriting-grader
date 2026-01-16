@@ -1,32 +1,44 @@
-import os
+"""Moderation agent for ensuring grading consistency and fairness."""
+
 import json
-from typing import List
+from typing import List, Dict, Any
 from google.genai import types
 from google.adk.agents.llm_agent import Agent
 from pydantic import BaseModel, Field
+
 from ..common import setup_agent_environment, run_agent_with_retry
 import grading_utils
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
 
+
 # Pydantic Models
 class ModerationItem(BaseModel):
-    """Individual moderation result"""
+    """Individual moderation result for a single student."""
+    
     moderated_mark: float = Field(description="Final moderated mark")
     flag: bool = Field(description="True if adjusted or needs review")
     note: str = Field(description="Short reason for moderation")
 
+
 class ModerationResponse(BaseModel):
-    """Response containing all moderation items"""
-    items: List[ModerationItem] = Field(description="List of moderation items")
+    """Response containing all moderation items."""
+    
+    items: List[ModerationItem] = Field(
+        description="List of moderation items"
+    )
+
 
 # Define Moderation Agent
 moderation_agent = Agent(
-    model="gemini-3-pro-preview", # Use pro for complex moderation reasoning if available/preferred
+    model="gemini-3-pro-preview",
     name="grading_moderator",
     description="Agent to moderate grading results for consistency.",
-    instruction="You are a grading moderator ensuring fairness and consistency. Review the student responses and marks.",
+    instruction=(
+        "You are a grading moderator ensuring fairness and consistency. "
+        "Review the student responses and marks."
+    ),
     output_schema=ModerationResponse,
     output_key="output",
     generate_content_config=types.GenerateContentConfig(
@@ -37,10 +49,28 @@ moderation_agent = Agent(
     ),
 )
 
-async def moderate_grades_with_ai(question_text, marking_scheme_text, total_marks, entries: List[dict], max_retries=3):
-    """Moderate grades using the moderation agent."""
+
+async def moderate_grades_with_ai(
+    question_text: str,
+    marking_scheme_text: str,
+    total_marks: float,
+    entries: List[Dict[str, Any]],
+    max_retries: int = 3
+) -> List[Dict[str, Any]]:
+    """
+    Moderate grades using the moderation agent.
     
-    # --- Caching Logic ---
+    Args:
+        question_text: The question text
+        marking_scheme_text: The marking scheme
+        total_marks: Total marks available
+        entries: List of student entries with marks
+        max_retries: Maximum retry attempts
+        
+    Returns:
+        List of moderation results with moderated marks
+    """
+    # Check cache
     cache_key = None
     try:
         cache_key = grading_utils.get_cache_key(
@@ -57,7 +87,6 @@ async def moderate_grades_with_ai(question_text, marking_scheme_text, total_mark
             return cached
     except Exception as e:
         logger.warning(f"Cache lookup failed: {e}")
-    # ---------------------
 
     entries_json = json.dumps(entries, ensure_ascii=False)
     
@@ -76,7 +105,10 @@ Responses:
 {entries_json}"""
 
     try:
-        content = types.Content(role="user", parts=[types.Part(text=prompt)])
+        content = types.Content(
+            role="user",
+            parts=[types.Part(text=prompt)]
+        )
         
         result = await run_agent_with_retry(
             agent=moderation_agent,
@@ -89,13 +121,19 @@ Responses:
         
         # Validate items length
         if len(result.items) != len(entries):
-            logger.warning(f"Moderation item count mismatch: got {len(result.items)}, expected {len(entries)}")
+            logger.warning(
+                f"Moderation item count mismatch: "
+                f"got {len(result.items)}, expected {len(entries)}"
+            )
             raise ValueError("Moderation item count mismatch")
         
         # Sanitize results
         results = []
         for item in result.items:
-            item.moderated_mark = max(0.0, min(float(total_marks), item.moderated_mark))
+            item.moderated_mark = max(
+                0.0,
+                min(float(total_marks), item.moderated_mark)
+            )
             results.append(item.model_dump())
         
         # Save to cache
@@ -107,4 +145,12 @@ Responses:
     except Exception as e:
         logger.error(f"Moderation failed: {e}")
         # Fallback: return original marks
-        return [{"moderated_mark": float(e.get("mark", 0)), "flag": False, "note": "moderation_error"} for e in entries]
+        return [
+            {
+                "moderated_mark": float(e.get("mark", 0)),
+                "flag": False,
+                "note": "moderation_error"
+            }
+            for e in entries
+        ]
+

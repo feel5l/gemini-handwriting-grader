@@ -1,29 +1,36 @@
+"""Analytics agent for generating performance reports and insights."""
+
 import os
 import json
 import hashlib
 import uuid
-import base64
-import time
-import re
 from io import BytesIO
+from typing import Optional, Dict, Any, List
 from PIL import Image
-from typing import Optional
 from google import genai
 from google.genai import types
 from google.adk.agents.llm_agent import Agent
 from google.adk.agents import SequentialAgent
 from pydantic import BaseModel, Field
+
 from ..common import setup_agent_environment, run_agent_with_retry
 import grading_utils
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
 
-# --- Student Performance Agent ---
+
+# ============================================================================
+# Student Performance Agent
+# ============================================================================
 
 class StudentPerformanceResponse(BaseModel):
-    """Structured response for student performance report"""
-    report_text: str = Field(description="The generated performance report text.")
+    """Structured response for student performance report."""
+    
+    report_text: str = Field(
+        description="The generated performance report text."
+    )
+
 
 student_performance_agent = Agent(
     model="gemini-3-flash-preview",
@@ -46,21 +53,35 @@ Keep it under 220 words and avoid restating the input verbatim.""",
     ),
 )
 
+
 async def generate_student_report_with_ai(
-    student_id,
-    student_name,
-    student_class,
-    total_score,
-    question_details,
-    max_retries=3,
-):
-    """Generate student performance report using AI"""
+    student_id: str,
+    student_name: str,
+    student_class: str,
+    total_score: float,
+    question_details: str,
+    max_retries: int = 3,
+) -> str:
+    """
+    Generate student performance report using AI.
     
-    # --- Caching Logic ---
+    Args:
+        student_id: Student identifier
+        student_name: Student name
+        student_class: Student class
+        total_score: Total score achieved
+        question_details: Detailed question-by-question breakdown
+        max_retries: Maximum retry attempts
+        
+    Returns:
+        Generated performance report text
+    """
+    # Check cache
     cache_key = None
     try:
-        # Use hash of the question details as payload hash
-        payload_hash = hashlib.sha256(question_details.encode("utf-8")).hexdigest()
+        payload_hash = hashlib.sha256(
+            question_details.encode("utf-8")
+        ).hexdigest()
         cache_key = grading_utils.get_cache_key(
             "performance_report",
             model="gemini-3-flash-preview",
@@ -68,12 +89,11 @@ async def generate_student_report_with_ai(
             payload_hash=payload_hash,
         )
         cached = grading_utils.get_from_cache(cache_key)
-        if cached is not None and isinstance(cached, dict) and "report" in cached:
+        if cached and isinstance(cached, dict) and "report" in cached:
             logger.info(f"Performance report cache hit for {student_id}")
             return cached["report"]
     except Exception as e:
         logger.warning(f"Cache lookup failed: {e}")
-    # ---------------------
 
     try:
         user_prompt = f"""Student: {student_id} - {student_name} (Class: {student_class})
@@ -82,7 +102,10 @@ Total score: {total_score}
 Use the question details, marking schemes, awarded marks, and answers below:
 {question_details}
 """
-        content = types.Content(role="user", parts=[types.Part(text=user_prompt)])
+        content = types.Content(
+            role="user",
+            parts=[types.Part(text=user_prompt)]
+        )
 
         result = await run_agent_with_retry(
             agent=student_performance_agent,
@@ -104,30 +127,53 @@ Use the question details, marking schemes, awarded marks, and answers below:
         return f"Report generation failed: {e}"
 
 
-# --- Class Overview Agent ---
+# ============================================================================
+# Class Overview Agent
+# ============================================================================
 
 class ClassOverviewResponse(BaseModel):
-    """Structured response for class overview report"""
-    report_text: str = Field(description="The generated class overview report text.")
-    infograph_image_path: Optional[str] = Field(default=None, description="File path to the generated infographic image, or None if generation failed.")
+    """Structured response for class overview report."""
+    
+    report_text: str = Field(
+        description="The generated class overview report text."
+    )
+    infograph_image_path: Optional[str] = Field(
+        default=None,
+        description=(
+            "File path to the generated infographic image, "
+            "or None if generation failed."
+        )
+    )
 
 
 def generate_infographic_tool(report_text: str) -> str:
     """
-    Generates an infographic image based on the report text using NanoBanana (Gemini).
-    Returns the file path of the saved image.
+    Generate an infographic image based on report text using NanoBanana.
+    
+    Args:
+        report_text: Report text to visualize
+        
+    Returns:
+        File path of the saved image or error message
     """
     try:
         logger.info("Generating infographic with NanoBanana tool...")
         
         # Initialize client
-        api_key = os.getenv("GOOGLE_GENAI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        api_key = (
+            os.getenv("GOOGLE_GENAI_API_KEY") or
+            os.getenv("GOOGLE_API_KEY")
+        )
         client = genai.Client(vertexai=True, api_key=api_key)
         
         # Define cache directory
-        # Current file: notebbooks/agents/analytics_agent/agent.py
-        # Need to reach project root: ../../../..
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        base_dir = os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.abspath(__file__))
+                )
+            )
+        )
         cache_dir = os.path.join(base_dir, "cache", "class_overview_report")
         os.makedirs(cache_dir, exist_ok=True)
         
@@ -155,7 +201,6 @@ def generate_infographic_tool(report_text: str) -> str:
                     filename = f"infograph_{uuid.uuid4().hex}.png"
                     image_path = os.path.join(cache_dir, filename)
                     
-                    # Use PIL to save, as inline_data.data is likely bytes
                     image = Image.open(BytesIO(part.inline_data.data))
                     image.save(image_path)
                     
@@ -163,8 +208,6 @@ def generate_infographic_tool(report_text: str) -> str:
                     return os.path.abspath(image_path)
                 except Exception as img_err:
                     logger.error(f"Failed to process/save image data: {img_err}")
-                    # Fallback to direct write if PIL fails (unlikely if valid)
-                    # or re-raise if strict
                     raise img_err
                 
         logger.warning("No image data found in NanoBanana response")
@@ -196,7 +239,7 @@ Focus on patterns; do not restate student names or IDs.""",
 
 
 class_overview_infograph_generator = Agent(
-    model="gemini-3-flash-preview", # Orchestrator model
+    model="gemini-3-flash-preview",
     name="class_overview_infograph_generator",
     description="Orchestrator for creating a class performance infographic.",
     instruction="""You are an expert coordinator.
@@ -220,21 +263,35 @@ class_overview_infograph_generator = Agent(
 class_overview_agent = SequentialAgent(
     name="class_overview_agent",
     description="Sequential agent for generating class overview text and infographic.",
-    sub_agents=[class_overview_text_generator, class_overview_infograph_generator]
+    sub_agents=[
+        class_overview_text_generator,
+        class_overview_infograph_generator
+    ]
 )
 
 
 async def generate_class_overview_with_ai(
-    summary_payload, sample_reports, max_retries=3
-):
-    """Generate class overview report using AI"""
+    summary_payload: Dict[str, Any],
+    sample_reports: List[str],
+    max_retries: int = 3
+) -> ClassOverviewResponse:
+    """
+    Generate class overview report using AI.
+    
+    Args:
+        summary_payload: Summary statistics dictionary
+        sample_reports: List of sample individual reports
+        max_retries: Maximum retry attempts
+        
+    Returns:
+        ClassOverviewResponse with report text and optional infographic path
+    """
     # Format sample reports
     report_blob = "\n\n---\n\n".join(sample_reports)
 
-    # --- Caching Logic ---
+    # Check cache
     cache_key = None
     try:
-        # Cache-aware Gemini call
         payload_hash = hashlib.sha256(
             (json.dumps(summary_payload, sort_keys=True) + report_blob).encode("utf-8")
         ).hexdigest()
@@ -244,19 +301,26 @@ async def generate_class_overview_with_ai(
             payload_hash=payload_hash,
         )
         cached = grading_utils.get_from_cache(cache_key)
-        if cached is not None and isinstance(cached, dict) and "report" in cached:
+        if cached and isinstance(cached, dict) and "report" in cached:
             # Validate image file existence if present
             image_path = cached.get("infograph_image_path")
-            if image_path and not str(image_path).startswith("IMAGE_GENERATION_") and not os.path.exists(image_path):
-                logger.warning(f"Cache hit but image file missing: {image_path}. Invalidating cache.")
+            if (image_path and
+                not str(image_path).startswith("IMAGE_GENERATION_") and
+                not os.path.exists(image_path)):
+                logger.warning(
+                    f"Cache hit but image file missing: {image_path}. "
+                    "Invalidating cache."
+                )
                 cached = None
 
             if cached:
                 logger.info("Class overview cache hit")
-                return cached
+                return ClassOverviewResponse(
+                    report_text=cached["report"],
+                    infograph_image_path=cached.get("infograph_image_path")
+                )
     except Exception as e:
         logger.warning(f"Cache lookup failed: {e}")
-    # ---------------------
 
     try:
         user_prompt = f"""Key metrics (JSON): {json.dumps(summary_payload)}
@@ -264,7 +328,10 @@ Number of sampled individual reports: {len(sample_reports)}
 Individual reports (separated by ---):
 {report_blob}
 """
-        content = types.Content(role="user", parts=[types.Part(text=user_prompt)])
+        content = types.Content(
+            role="user",
+            parts=[types.Part(text=user_prompt)]
+        )
 
         result = await run_agent_with_retry(
             agent=class_overview_agent,
@@ -286,32 +353,62 @@ Individual reports (separated by ---):
 
     except Exception as e:
         logger.error(f"Class overview generation failed: {e}")
-        return ClassOverviewResponse(report_text="AI-generated class overview temporarily unavailable due to API issues.")
+        return ClassOverviewResponse(
+            report_text=(
+                "AI-generated class overview temporarily unavailable "
+                "due to API issues."
+            )
+        )
 
 
-# --- Question Analysis Agent ---
+# ============================================================================
+# Question Analysis Agent
+# ============================================================================
 
 class QuestionAnalysisResponse(BaseModel):
-    """Structured response for detailed question analysis"""
-    report_text: str = Field(description="The generated analysis of question performance, misconceptions, and patterns.")
-    infograph_image_path: Optional[str] = Field(default=None, description="File path to the generated infographic image.")
+    """Structured response for detailed question analysis."""
+    
+    report_text: str = Field(
+        description=(
+            "The generated analysis of question performance, "
+            "misconceptions, and patterns."
+        )
+    )
+    infograph_image_path: Optional[str] = Field(
+        default=None,
+        description="File path to the generated infographic image."
+    )
 
 
 def generate_question_infographic_tool(analysis_text: str) -> str:
     """
-    Generates a 'Deep Dive' infographic for a specific question analysis using NanoBanana (Gemini).
-    Returns the file path of the saved image.
+    Generate a 'Deep Dive' infographic for question analysis using NanoBanana.
+    
+    Args:
+        analysis_text: Analysis text to visualize
+        
+    Returns:
+        File path of the saved image or error message
     """
     try:
         logger.info("Generating question analysis infographic with NanoBanana tool...")
         
         # Initialize client
-        api_key = os.getenv("GOOGLE_GENAI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        api_key = (
+            os.getenv("GOOGLE_GENAI_API_KEY") or
+            os.getenv("GOOGLE_API_KEY")
+        )
         client = genai.Client(vertexai=True, api_key=api_key)
         
         # Define cache directory
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        cache_dir = os.path.join(base_dir, "cache", "class_overview_report") # Reuse same cache dir for simplicity
+        base_dir = os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.abspath(__file__))
+                )
+            )
+        )
+        cache_dir = os.path.join(base_dir, "cache", "class_overview_report")
         os.makedirs(cache_dir, exist_ok=True)
         
         prompt = f"""Create a professional, high-quality educational infographic titled 'Question Insight'.
@@ -408,48 +505,65 @@ question_insight_infograph_generator = Agent(
 question_analysis_agent = SequentialAgent(
     name="question_analysis_agent",
     description="Sequential agent for generating question insights and infographic.",
-    sub_agents=[question_insight_text_generator, question_insight_infograph_generator]
+    sub_agents=[
+        question_insight_text_generator,
+        question_insight_infograph_generator
+    ]
 )
 
 
 async def generate_question_insights_with_ai(
-    question_data_payload, max_retries=3
-):
-    """Generate question-level insights and infographic using AI"""
+    question_data_payload: Dict[str, Any],
+    max_retries: int = 3
+) -> QuestionAnalysisResponse:
+    """
+    Generate question-level insights and infographic using AI.
     
-    # --- Caching Logic ---
+    Args:
+        question_data_payload: Question performance data dictionary
+        max_retries: Maximum retry attempts
+        
+    Returns:
+        QuestionAnalysisResponse with analysis text and optional infographic path
+    """
+    # Check cache
     cache_key = None
     try:
-        # Hash the input payload
         payload_str = json.dumps(question_data_payload, sort_keys=True)
         payload_hash = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
         cache_key = grading_utils.get_cache_key(
-            "class_overview_report", # Reusing report cache category
+            "class_overview_report",
             sub_type="question_insights",
             model="gemini-3-flash-preview",
             payload_hash=payload_hash,
         )
         cached = grading_utils.get_from_cache(cache_key)
-        if cached is not None and isinstance(cached, dict) and "report_text" in cached:
+        if cached and isinstance(cached, dict) and "report_text" in cached:
             # Validate image file existence if present
             image_path = cached.get("infograph_image_path")
-            if image_path and not str(image_path).startswith("IMAGE_GENERATION_") and not os.path.exists(image_path):
-                logger.warning(f"Cache hit but image file missing: {image_path}. Invalidating cache.")
+            if (image_path and
+                not str(image_path).startswith("IMAGE_GENERATION_") and
+                not os.path.exists(image_path)):
+                logger.warning(
+                    f"Cache hit but image file missing: {image_path}. "
+                    "Invalidating cache."
+                )
                 cached = None
 
             if cached:
                 logger.info("Question insights cache hit")
-                return cached
+                return QuestionAnalysisResponse(**cached)
     except Exception as e:
         logger.warning(f"Cache lookup failed: {e}")
-    # ---------------------
 
     try:
-        # Provide the raw data to the agent
         user_prompt = f"""**Question Performance Data (JSON):**
 {json.dumps(question_data_payload, indent=2)}
 """
-        content = types.Content(role="user", parts=[types.Part(text=user_prompt)])
+        content = types.Content(
+            role="user",
+            parts=[types.Part(text=user_prompt)]
+        )
 
         result = await run_agent_with_retry(
             agent=question_analysis_agent,
@@ -471,4 +585,6 @@ async def generate_question_insights_with_ai(
 
     except Exception as e:
         logger.error(f"Question insights generation failed: {e}")
-        return QuestionAnalysisResponse(report_text=f"AI insights unavailable: {e}")
+        return QuestionAnalysisResponse(
+            report_text=f"AI insights unavailable: {e}"
+        )

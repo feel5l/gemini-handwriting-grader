@@ -1,34 +1,42 @@
-import os
-from typing import List
+"""Annotation agent for extracting bounding boxes from exam images."""
+
 import hashlib
+from typing import List
 from google.genai import types
 from google.adk.agents.llm_agent import Agent
 from pydantic import BaseModel, Field
+
 from ..common import setup_agent_environment, run_agent_with_retry
 import grading_utils
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
 
-# Robust Pydantic models with validation
+
+# Pydantic models
 class BoundingBox(BaseModel):
-    """Represents a single bounding box annotation with validation."""
+    """Represents a single bounding box annotation."""
+    
     x: int = Field(description="X coordinate of the top-left corner")
     y: int = Field(description="Y coordinate of the top-left corner")
     width: int = Field(description="Width of the bounding box")
     height: int = Field(description="Height of the bounding box")
     label: str = Field(description="Question number (e.g., '1', '2', '3')")
 
+
 class BoundingBoxResponse(BaseModel):
-    """Wrapper class for list of bounding boxes with validation."""
-    boxes: List[BoundingBox] = Field(description="List of bounding boxes for question cells")
+    """Wrapper class for list of bounding boxes."""
+    
+    boxes: List[BoundingBox] = Field(
+        description="List of bounding boxes for question cells"
+    )
 
 
-# Define the specialized agent
+# Define the annotation agent
 annotation_agent = Agent(
     model="gemini-3-flash-preview",
     name="annotation_extractor",
-    description="Specialized agent for extracting bounding boxes for question/answer cells from exam images.",
+    description="Agent for extracting bounding boxes from exam images.",
     instruction="""Extract the coordinates of bounding boxes for each question/answer cell from the table in the image.
 
 Instructions:
@@ -66,12 +74,22 @@ Important:
 )
 
 
-# Robust AI processing with comprehensive error handling and retry logic
-async def extract_annotations_with_ai(image_path, max_retries=3):
-    """Extract annotations using AI with error handling via ADK Runner (Async)"""
 
+async def extract_annotations_with_ai(
+    image_path: str,
+    max_retries: int = 3
+) -> BoundingBoxResponse:
+    """
+    Extract annotations using AI with error handling via ADK Runner.
+    
+    Args:
+        image_path: Path to the image file
+        max_retries: Maximum retry attempts
+        
+    Returns:
+        BoundingBoxResponse with list of bounding boxes
+    """
     # Read image data
-    image_data = None
     try:
         with open(image_path, "rb") as f:
             image_data = f.read()
@@ -79,7 +97,7 @@ async def extract_annotations_with_ai(image_path, max_retries=3):
         logger.error(f"Failed to read image file {image_path}: {e}")
         return BoundingBoxResponse(boxes=[])
 
-    # --- Caching Logic ---
+    # Check cache
     cache_key = None
     try:
         image_hash = hashlib.sha256(image_data).hexdigest()
@@ -94,14 +112,17 @@ async def extract_annotations_with_ai(image_path, max_retries=3):
             return BoundingBoxResponse(**cached)
     except Exception as e:
         logger.warning(f"Cache lookup failed: {e}")
-    # ---------------------
 
     try:
-        # Create user prompt with image
         content = types.Content(
             role="user",
             parts=[
-                types.Part(inline_data=types.Blob(mime_type="image/jpeg", data=image_data)),
+                types.Part(
+                    inline_data=types.Blob(
+                        mime_type="image/jpeg",
+                        data=image_data
+                    )
+                ),
                 types.Part(text="Extract bounding boxes from this image.")
             ]
         )
@@ -116,7 +137,7 @@ async def extract_annotations_with_ai(image_path, max_retries=3):
         )
         
         logger.info(
-            f"✓ Successfully extracted {len(result.boxes)} boxes via ADK output state!"
+            f"Successfully extracted {len(result.boxes)} boxes"
         )
         
         # Save to cache
@@ -127,5 +148,6 @@ async def extract_annotations_with_ai(image_path, max_retries=3):
 
     except Exception as e:
         logger.error(f"All extraction attempts failed for {image_path}: {e}")
-        # Return empty response instead of raising to allow partial success in batch processing
+        # Return empty response to allow partial success in batch processing
         return BoundingBoxResponse(boxes=[])
+

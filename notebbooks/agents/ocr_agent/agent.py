@@ -1,11 +1,14 @@
+"""OCR agent for extracting text from images."""
+
 import os
-import asyncio
 import time
 import hashlib
+from typing import Optional
 from google.genai import types
 from google.adk.agents.llm_agent import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
+
 from ..common import setup_agent_environment
 import grading_utils
 
@@ -16,8 +19,11 @@ logger = setup_agent_environment(__file__)
 ocr_agent = Agent(
     model="gemini-3-flash-preview",
     name="ocr_extractor",
-    description="Agent for extracting text from images based on specific instructions.",
-    instruction="You are an expert OCR assistant. Your task is to extract text from images exactly as requested.",
+    description="Agent for extracting text from images.",
+    instruction=(
+        "You are an expert OCR assistant. "
+        "Extract text from images exactly as requested."
+    ),
     generate_content_config=types.GenerateContentConfig(
         temperature=0.0,
         top_p=0.5,
@@ -25,13 +31,25 @@ ocr_agent = Agent(
     ),
 )
 
-async def perform_ocr_with_ai(prompt: str, image_path: str = None, image_data: bytes = None, max_retries: int = 3) -> str:
+
+async def perform_ocr_with_ai(
+    prompt: str,
+    image_path: Optional[str] = None,
+    image_data: Optional[bytes] = None,
+    max_retries: int = 3
+) -> str:
     """
     Perform OCR using the OCR agent with caching.
-    Accepts either image_path or image_data.
-    """
     
-    # Initialize session service once
+    Args:
+        prompt: Instructions for text extraction
+        image_path: Path to image file (optional if image_data provided)
+        image_data: Raw image bytes (optional if image_path provided)
+        max_retries: Maximum number of retry attempts
+        
+    Returns:
+        Extracted text string
+    """
     session_service = InMemorySessionService()
     
     # Load image data if path is provided
@@ -47,64 +65,71 @@ async def perform_ocr_with_ai(prompt: str, image_path: str = None, image_data: b
         logger.error("No image data provided for OCR")
         return ""
 
-    # --- Caching Logic ---
+    # Check cache
     cache_key = None
     try:
         image_hash = hashlib.sha256(image_data).hexdigest()
         cache_key = grading_utils.get_cache_key(
-            "ocr", 
-            model="gemini-3-flash-preview", 
-            prompt=prompt, 
+            "ocr",
+            model="gemini-3-flash-preview",
+            prompt=prompt,
             image_hash=image_hash
         )
         cached_result = grading_utils.get_from_cache(cache_key)
-        if cached_result is not None:
-             if isinstance(cached_result, dict) and "result" in cached_result:
-                 logger.info(f"OCR cache hit for hash {image_hash[:8]}")
-                 return cached_result["result"]
+        if cached_result and isinstance(cached_result, dict):
+            if "result" in cached_result:
+                logger.info(f"OCR cache hit for hash {image_hash[:8]}")
+                return cached_result["result"]
     except Exception as e:
         logger.warning(f"Cache lookup failed: {e}")
-    # ---------------------
 
+    # Perform OCR with retry
     for attempt in range(max_retries):
         try:
-            # Create a unique session
             session_id = f"session_{os.urandom(4).hex()}"
-            session = await session_service.create_session(
+            await session_service.create_session(
                 app_name="ocr_extractor",
                 session_id=session_id,
                 user_id="user",
             )
 
-            # Initialize Runner
             runner = Runner(
                 agent=ocr_agent,
                 app_name="ocr_extractor",
                 session_service=session_service,
             )
 
-            # Create content with image and prompt
             content = types.Content(
                 role="user",
                 parts=[
-                    types.Part(inline_data=types.Blob(mime_type="image/jpeg", data=image_data)), # Assuming JPEG/PNG, API usually handles generic image types well or we could detect
+                    types.Part(
+                        inline_data=types.Blob(
+                            mime_type="image/jpeg",
+                            data=image_data
+                        )
+                    ),
                     types.Part(text=prompt)
                 ]
             )
 
-            # Run the agent
             final_text = ""
             async for event in runner.run_async(
-                session_id=session_id, user_id="user", new_message=content
+                session_id=session_id,
+                user_id="user",
+                new_message=content
             ):
-                if event.is_final_response() and event.content and event.content.parts:
+                if (event.is_final_response() and
+                    event.content and
+                    event.content.parts):
                     final_text = event.content.parts[0].text
 
             if final_text:
                 result_text = final_text.strip()
-                # Save to cache
                 if cache_key:
-                    grading_utils.save_to_cache(cache_key, {"result": result_text})
+                    grading_utils.save_to_cache(
+                        cache_key,
+                        {"result": result_text}
+                    )
                 return result_text
             
             logger.warning(f"Empty OCR response on attempt {attempt + 1}")
@@ -119,3 +144,4 @@ async def perform_ocr_with_ai(prompt: str, image_path: str = None, image_data: b
                 return ""
     
     return ""
+

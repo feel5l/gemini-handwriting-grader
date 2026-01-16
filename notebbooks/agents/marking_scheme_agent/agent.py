@@ -1,80 +1,138 @@
-import os
-from typing import List, Optional, Union
+"""Marking scheme agent for extracting and verifying marking schemes."""
+
+import hashlib
+from typing import List, Tuple, Dict, Any
 from google.genai import types
 from google.adk.agents import Agent, SequentialAgent
 from google.adk.tools.google_search_tool import GoogleSearchTool
 from google.adk.models.llm_response import LlmResponse
 from google.adk.agents.callback_context import CallbackContext
 from pydantic import BaseModel, Field
+
 from ..common import setup_agent_environment, run_agent_with_retry
 import grading_utils
-import hashlib
-
-
-# Citation retrieval callback
-def citation_retrieval_after_model_callback(
-    callback_context: CallbackContext,
-    llm_response: LlmResponse,
-) -> LlmResponse:
-    """Adds citations to the response if grounding metadata is present."""
-    if llm_response.grounding_metadata and llm_response.grounding_metadata.grounding_chunks:
-        # Check if we can append to content
-        if llm_response.content and llm_response.content.parts:
-            citation_text = "\n\nCitations:\n"
-            found_citations = False
-            for chunk in llm_response.grounding_metadata.grounding_chunks:
-                if chunk.web:
-                    found_citations = True
-                    # Use Markdown link format for better readability
-                    citation_text += f"  - [{chunk.web.title}]({chunk.web.uri})\n"
-            
-            if found_citations:
-                # Append to the first text part if it exists
-                for part in llm_response.content.parts:
-                    if part.text:
-                        part.text += citation_text
-                        break
-                else:
-                    # If no text part, add a new one
-                    llm_response.content.parts.append(types.Part(text=citation_text))
-    return llm_response
-
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
 
 
-# Robust Pydantic models with comprehensive validation
-class Question(BaseModel):
-    """Robust question model with comprehensive validation"""
+# Callback for citation retrieval
+def citation_retrieval_after_model_callback(
+    callback_context: CallbackContext,
+    llm_response: LlmResponse,
+) -> LlmResponse:
+    """
+    Add citations to response if grounding metadata is present.
+    
+    Args:
+        callback_context: Callback context from ADK
+        llm_response: LLM response to modify
+        
+    Returns:
+        Modified LLM response with citations
+    """
+    if (llm_response.grounding_metadata and
+        llm_response.grounding_metadata.grounding_chunks):
+        
+        if llm_response.content and llm_response.content.parts:
+            citation_text = "\n\nCitations:\n"
+            found_citations = False
+            
+            for chunk in llm_response.grounding_metadata.grounding_chunks:
+                if chunk.web:
+                    found_citations = True
+                    citation_text += (
+                        f"  - [{chunk.web.title}]({chunk.web.uri})\n"
+                    )
+            
+            if found_citations:
+                # Append to first text part if it exists
+                for part in llm_response.content.parts:
+                    if part.text:
+                        part.text += citation_text
+                        break
+                else:
+                    # Add new part if no text part exists
+                    llm_response.content.parts.append(
+                        types.Part(text=citation_text)
+                    )
+    
+    return llm_response
 
+
+# Pydantic models for extraction
+class Question(BaseModel):
+    """Question model with marking scheme."""
+    
     question_number: str = Field(
-        description="The question number (e.g., '1', '2', '22a', '22b', 'Q1','Q2')"
+        description="Question number (e.g., '1', '2', '22a', 'Q1')"
     )
-    question_text: str = Field(description="The full question text")
+    question_text: str = Field(
+        description="The full question text"
+    )
     marking_scheme: str = Field(
-        description="Well-formatted marking scheme using markdown. Use bullet points (-), numbered lists (1., 2.), bold (**text**) for key terms, and clear line breaks. Include point allocations in parentheses (e.g., '- Key concept explained (2 marks)'). Structure should be clear and scannable."
+        description=(
+            "Well-formatted marking scheme using markdown. "
+            "Use bullet points (-), numbered lists (1., 2.), "
+            "bold (**text**) for key terms, and clear line breaks. "
+            "Include point allocations in parentheses "
+            "(e.g., '- Key concept explained (2 marks)')."
+        )
     )
-    marks: int = Field(description="Total marks available for this question")
+    marks: int = Field(
+        description="Total marks available for this question"
+    )
 
 
 class MarkingSchemeResponse(BaseModel):
-    """Robust wrapper class with validation"""
-
+    """Response containing extracted marking scheme."""
+    
     general_grading_guide: str = Field(
         default="",
-        description="General grading guide for partial marks applicable to all questions, formatted in markdown",
+        description=(
+            "General grading guide for partial marks applicable to "
+            "all questions, formatted in markdown"
+        ),
     )
     questions: List[Question] = Field(
         description="List of questions with marking schemes and marks"
     )
 
 
-# Define the specialized agent
+# Pydantic models for verification
+class VerificationItem(BaseModel):
+    """Result of verifying a single question."""
+    
+    question_number: str = Field(
+        description="The question identifier (e.g., 'Q1')"
+    )
+    is_correct: bool = Field(
+        description="Whether the question and answer are factually correct"
+    )
+    feedback: str = Field(
+        description="Detailed feedback explaining issues or confirming correctness"
+    )
+    suggestion: str = Field(
+        description="Suggestion for improvement if needed, or 'None' if correct"
+    )
+
+
+class VerificationResponse(BaseModel):
+    """Structured verification results."""
+    
+    items: List[VerificationItem] = Field(
+        description="Verification results for all questions"
+    )
+    general_feedback: str = Field(
+        description="Overall feedback on the marking scheme quality"
+    )
+
+
+# Define the marking scheme extraction agent
 marking_scheme_agent = Agent(
     model="gemini-3-flash-preview",
     name="marking_scheme_extractor",
-    description="Specialized agent for extracting structured marking schemes from documents.",
+    description="Agent for extracting structured marking schemes from documents.",
     instruction="""Please analyze this marking scheme document and extract structured, well-formatted data.
 
 **FORMATTING REQUIREMENTS for marking_scheme:**
@@ -112,26 +170,11 @@ marking_scheme_agent = Agent(
 )
 
 
-# Robust verification models
-class VerificationItem(BaseModel):
-    """Result of verifying a single question"""
-    question_number: str = Field(description="The question identifier (e.g., 'Q1')")
-    is_correct: bool = Field(description="Whether the question and answer are factually correct")
-    feedback: str = Field(description="Detailed feedback explaining any issues or confirming correctness")
-    suggestion: str = Field(description="Suggestion for improvement if needed, or 'None' if correct")
-
-
-class VerificationResponse(BaseModel):
-    """Structured verification results"""
-    items: List[VerificationItem] = Field(description="Verification results for all questions")
-    general_feedback: str = Field(description="Overall feedback on the marking scheme quality")
-
-
-# Define the verification search agent (Grounding with tools, no schema)
+# Define the verification search agent
 marking_scheme_verifier_searcher = Agent(
     model="gemini-3-flash-preview",
     name="marking_scheme_verifier_searcher",
-    description="Agent that verifies marking schemes using Google Search grounding.",
+    description="Agent that verifies marking schemes using Google Search.",
     instruction="""You are an expert examiner. Verify the following marking scheme questions and answers for factual correctness using Google Search.
 
 For each question:
@@ -153,7 +196,7 @@ Evaluate:
 )
 
 
-# Define the verification formatting agent (Structured output, no tools)
+# Define the verification formatting agent
 marking_scheme_verifier_formatter = Agent(
     model="gemini-3-flash-preview",
     name="marking_scheme_verifier_formatter",
@@ -170,22 +213,44 @@ Provide an overall 'general_feedback' summary.
     ),
 )
 
+
 # Define the sequential verification agent
 marking_scheme_verifier = SequentialAgent(
     name="marking_scheme_verifier",
     description="Sequential agent for marking scheme verification and formatting.",
-    sub_agents=[marking_scheme_verifier_searcher, marking_scheme_verifier_formatter]
+    sub_agents=[
+        marking_scheme_verifier_searcher,
+        marking_scheme_verifier_formatter
+    ]
 )
 
 
-# Robust AI processing with comprehensive error handling and retry logic
-async def extract_marking_scheme_with_ai(markdown_content, max_retries=3):
-    """Extract marking scheme using AI with error handling via ADK Runner (Async)"""
 
-    # --- Caching Logic ---
+async def extract_marking_scheme_with_ai(
+    markdown_content: str,
+    max_retries: int = 3
+) -> Tuple[List[Dict[str, Any]], str]:
+    """
+    Extract marking scheme using AI with error handling.
+    
+    Args:
+        markdown_content: Markdown content of the marking scheme document
+        max_retries: Maximum retry attempts
+        
+    Returns:
+        Tuple of (questions_data, general_guide)
+        - questions_data: List of question dictionaries
+        - general_guide: General grading guide string
+        
+    Raises:
+        Exception: If extraction fails after all retries
+    """
+    # Check cache
     cache_key = None
     try:
-        content_hash = hashlib.sha256(markdown_content.encode("utf-8")).hexdigest()
+        content_hash = hashlib.sha256(
+            markdown_content.encode("utf-8")
+        ).hexdigest()
         cache_key = grading_utils.get_cache_key(
             "marking_scheme_extraction",
             model="gemini-3-flash-preview",
@@ -194,19 +259,19 @@ async def extract_marking_scheme_with_ai(markdown_content, max_retries=3):
         cached = grading_utils.get_from_cache(cache_key)
         if cached is not None:
             logger.info("Marking scheme cache hit")
-            # Cached data is a list of dicts for questions_data and a string for general_guide
             return cached[0], cached[1]
     except Exception as e:
         logger.warning(f"Cache lookup failed: {e}")
-    # ---------------------
 
     try:
-        # Create user prompt combining the document content
         user_prompt = f"""**Document Content:**
 
 {markdown_content}
 """
-        content = types.Content(role="user", parts=[types.Part(text=user_prompt)])
+        content = types.Content(
+            role="user",
+            parts=[types.Part(text=user_prompt)]
+        )
 
         result = await run_agent_with_retry(
             agent=marking_scheme_agent,
@@ -221,16 +286,20 @@ async def extract_marking_scheme_with_ai(markdown_content, max_retries=3):
         questions_data = [q.model_dump() for q in result.questions]
 
         logger.info(
-            f"✓ Successfully extracted {len(questions_data)} questions via ADK output state!"
+            f"Successfully extracted {len(questions_data)} questions"
         )
         if general_guide:
             logger.info(
-                f"✓ General grading guide extracted ({len(general_guide)} characters)"
+                f"General grading guide extracted "
+                f"({len(general_guide)} characters)"
             )
 
         # Save to cache
         if cache_key:
-            grading_utils.save_to_cache(cache_key, (questions_data, general_guide))
+            grading_utils.save_to_cache(
+                cache_key,
+                (questions_data, general_guide)
+            )
 
         return questions_data, general_guide
 
@@ -239,22 +308,46 @@ async def extract_marking_scheme_with_ai(markdown_content, max_retries=3):
         raise
 
 
-async def verify_marking_scheme_with_ai(questions_data, max_retries=3):
-    """Verify marking scheme correctness using AI with Google Search grounding (Sequential Agent)"""
+async def verify_marking_scheme_with_ai(
+    questions_data: List[Dict[str, Any]],
+    max_retries: int = 3
+) -> Tuple[List[Dict[str, Any]], str]:
+    """
+    Verify marking scheme correctness using AI with Google Search.
     
+    Uses the SequentialAgent for verification and formatting.
+    
+    Args:
+        questions_data: List of question dictionaries to verify
+        max_retries: Maximum retry attempts
+        
+    Returns:
+        Tuple of (verification_items, general_feedback)
+        - verification_items: List of verification result dictionaries
+        - general_feedback: Overall feedback string
+    """
     try:
         logger.info("Starting sequential marking scheme verification...")
+        
         # Prepare content for verification
         questions_text = ""
         for q in questions_data:
-            questions_text += f"Question {q.get('question_number')}: {q.get('question_text')}\n"
-            questions_text += f"Answer/Marking: {q.get('marking_scheme')}\n\n"
+            questions_text += (
+                f"Question {q.get('question_number')}: "
+                f"{q.get('question_text')}\n"
+            )
+            questions_text += (
+                f"Answer/Marking: {q.get('marking_scheme')}\n\n"
+            )
             
         user_prompt = f"""**Marking Scheme to Verify:**
 
 {questions_text}
 """
-        content = types.Content(role="user", parts=[types.Part(text=user_prompt)])
+        content = types.Content(
+            role="user",
+            parts=[types.Part(text=user_prompt)]
+        )
 
         # Run the Sequential Agent
         result = await run_agent_with_retry(
@@ -269,11 +362,14 @@ async def verify_marking_scheme_with_ai(questions_data, max_retries=3):
         verification_items = [v.model_dump() for v in result.items]
         general_feedback = result.general_feedback
         
-        logger.info(f"✓ Sequential verification completed: {len(verification_items)} items checked")
+        logger.info(
+            f"Sequential verification completed: "
+            f"{len(verification_items)} items checked"
+        )
         
         return verification_items, general_feedback
 
     except Exception as e:
         logger.error(f"AI verification failed: {e}")
-        # Return empty results rather than crashing the whole pipeline if verification fails
+        # Return empty results rather than crashing
         return [], f"Verification failed due to technical error: {str(e)}"
