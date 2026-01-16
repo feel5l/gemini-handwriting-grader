@@ -1,14 +1,15 @@
 """Grading agent for evaluating student answers."""
 
-import hashlib
 from typing import Optional
 from google.genai import types
 from google.adk.agents import Agent, SequentialAgent
 from pydantic import BaseModel, Field
 
 from ..common import setup_agent_environment, run_agent_with_retry
-from ..ocr_agent.agent import ocr_agent
-import grading_utils
+from ..caching_callback import (
+    create_grading_cache_callbacks,
+    create_ocr_grading_cache_callbacks
+)
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
@@ -32,7 +33,7 @@ class GradingResult(BaseModel):
     )
 
 
-# Define Grading Agent
+# Define static Grading Agent (for backward compatibility)
 grading_agent = Agent(
     model="gemini-3-flash-preview",
     name="grading_expert",
@@ -58,7 +59,24 @@ grading_agent = Agent(
 )
 
 
-# Define Sequential Agent for OCR + Grading
+# Define static OCR Agent (for backward compatibility)
+ocr_agent = Agent(
+    model="gemini-3-flash-preview",
+    name="ocr_extractor",
+    description="Agent for extracting text from images.",
+    instruction=(
+        "You are an expert OCR assistant. "
+        "Extract text from images exactly as requested."
+    ),
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.0,
+        top_p=0.5,
+        max_output_tokens=4096,
+    ),
+)
+
+
+# Define static Sequential Agent for OCR + Grading (for backward compatibility)
 ocr_grading_agent = SequentialAgent(
     name="ocr_and_grading",
     description=(
@@ -78,7 +96,7 @@ async def grade_answer_with_ai(
     max_retries: int = 3
 ) -> GradingResult:
     """
-    Grade a student's answer using the grading agent (text-only).
+    Grade a student's answer using the grading agent with callback-based caching.
     
     Args:
         question_text: The question text
@@ -90,23 +108,41 @@ async def grade_answer_with_ai(
     Returns:
         GradingResult with mark and reasoning
     """
-    # Check cache
-    cache_key = None
-    try:
-        cache_key = grading_utils.get_cache_key(
-            "grade_answer",
-            model="gemini-3-flash-preview",
-            question=question_text,
-            answer=submitted_answer,
-            scheme=marking_scheme_text,
-            marks=total_marks
-        )
-        cached = grading_utils.get_from_cache(cache_key)
-        if cached:
-            logger.info("Grading cache hit")
-            return GradingResult(**cached)
-    except Exception as e:
-        logger.warning(f"Cache lookup failed: {e}")
+    # Create caching callbacks
+    before_callback, after_callback = create_grading_cache_callbacks(
+        question_text=question_text,
+        submitted_answer=submitted_answer,
+        marking_scheme_text=marking_scheme_text,
+        total_marks=total_marks,
+        model="gemini-3-flash-preview"
+    )
+    
+    # Create grading agent with caching callbacks
+    grading_agent_cached = Agent(
+        model="gemini-3-flash-preview",
+        name="grading_expert",
+        description="Expert grader for evaluating student answers.",
+        instruction=(
+            "You are an expert grader. Evaluate the student's answer based on "
+            "the provided question, marking scheme, and total marks.\n\n"
+            "If this is part of a sequential process (e.g., following OCR), "
+            "the student's answer will be the input provided to you. "
+            "The Question, Marking Scheme, and Total Marks will be found in "
+            "the conversation history (context).\n\n"
+            "Ensure you populate the 'extracted_text' field with the student's "
+            "answer you evaluated."
+        ),
+        output_schema=GradingResult,
+        output_key="output",
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.0,
+            top_p=0.3,
+            max_output_tokens=8192,
+            response_mime_type="application/json",
+        ),
+        before_model_callback=before_callback,
+        after_model_callback=after_callback
+    )
     
     prompt = f"""<QUESTION>
 {question_text}
@@ -137,7 +173,7 @@ Provide:
         )
         
         result = await run_agent_with_retry(
-            agent=grading_agent,
+            agent=grading_agent_cached,
             user_content=content,
             app_name="grading_expert",
             output_type=GradingResult,
@@ -149,10 +185,6 @@ Provide:
         result.similarity_score = max(0.0, min(1.0, result.similarity_score))
         result.mark = max(0.0, min(float(total_marks), result.mark))
         
-        # Save to cache
-        if cache_key:
-            grading_utils.save_to_cache(cache_key, result.model_dump())
-            
         return result
             
     except Exception as e:
@@ -173,9 +205,7 @@ async def grade_answer_with_ocr_and_ai(
     max_retries: int = 3
 ) -> GradingResult:
     """
-    Grade a student's answer by first performing OCR then grading.
-    
-    Uses the SequentialAgent 'ocr_grading_agent'.
+    Grade a student's answer by first performing OCR then grading with callback-based caching.
     
     Args:
         question_text: The question text
@@ -187,27 +217,68 @@ async def grade_answer_with_ocr_and_ai(
     Returns:
         GradingResult with mark and reasoning
     """
-    # Check cache
-    cache_key = None
-    try:
-        image_hash = hashlib.sha256(image_data).hexdigest()
-        
-        cache_key = grading_utils.get_cache_key(
-            "grade_answer_ocr",
-            model="gemini-3-flash-preview",
-            question=question_text,
-            scheme=marking_scheme_text,
-            marks=total_marks,
-            image_hash=image_hash
-        )
-        cached = grading_utils.get_from_cache(cache_key)
-        if cached:
-            logger.info("OCR+Grading cache hit")
-            return GradingResult(**cached)
-    except Exception as e:
-        logger.warning(f"Cache lookup failed: {e}")
+    # Create caching callbacks
+    before_callback, after_callback = create_ocr_grading_cache_callbacks(
+        question_text=question_text,
+        marking_scheme_text=marking_scheme_text,
+        total_marks=total_marks,
+        image_data=image_data,
+        model="gemini-3-flash-preview"
+    )
+    
+    # Create OCR agent
+    ocr_agent_instance = Agent(
+        model="gemini-3-flash-preview",
+        name="ocr_extractor",
+        description="Agent for extracting text from images.",
+        instruction=(
+            "You are an expert OCR assistant. "
+            "Extract text from images exactly as requested."
+        ),
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.0,
+            top_p=0.5,
+            max_output_tokens=4096,
+        ),
+    )
+    
+    # Create grading agent
+    grading_agent_instance = Agent(
+        model="gemini-3-flash-preview",
+        name="grading_expert",
+        description="Expert grader for evaluating student answers.",
+        instruction=(
+            "You are an expert grader. Evaluate the student's answer based on "
+            "the provided question, marking scheme, and total marks.\n\n"
+            "If this is part of a sequential process (e.g., following OCR), "
+            "the student's answer will be the input provided to you. "
+            "The Question, Marking Scheme, and Total Marks will be found in "
+            "the conversation history (context).\n\n"
+            "Ensure you populate the 'extracted_text' field with the student's "
+            "answer you evaluated."
+        ),
+        output_schema=GradingResult,
+        output_key="output",
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.0,
+            top_p=0.3,
+            max_output_tokens=8192,
+            response_mime_type="application/json",
+        ),
+    )
+    
+    # Create Sequential Agent with caching callbacks
+    ocr_grading_agent_cached = SequentialAgent(
+        name="ocr_and_grading",
+        description=(
+            "Sequential agent that first extracts text from an image (OCR) "
+            "and then grades it."
+        ),
+        sub_agents=[ocr_agent_instance, grading_agent_instance],
+        before_model_callback=before_callback,
+        after_model_callback=after_callback
+    )
 
-    # Construct prompt with grading context
     prompt = f"""<CONTEXT_FOR_GRADING>
 <QUESTION>
 {question_text}
@@ -238,9 +309,8 @@ please focus on extracting the text in the image)."""
             ]
         )
         
-        # Run the Sequential Agent
         result = await run_agent_with_retry(
-            agent=ocr_grading_agent,
+            agent=ocr_grading_agent_cached,
             user_content=content,
             app_name="ocr_and_grading",
             output_type=GradingResult,
@@ -252,10 +322,6 @@ please focus on extracting the text in the image)."""
         result.similarity_score = max(0.0, min(1.0, result.similarity_score))
         result.mark = max(0.0, min(float(total_marks), result.mark))
         
-        # Save to cache
-        if cache_key:
-            grading_utils.save_to_cache(cache_key, result.model_dump())
-            
         return result
 
     except Exception as e:

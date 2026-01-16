@@ -32,7 +32,7 @@ class BoundingBoxResponse(BaseModel):
     )
 
 
-# Define the annotation agent
+# Define static annotation agent (for backward compatibility)
 annotation_agent = Agent(
     model="gemini-3-flash-preview",
     name="annotation_extractor",
@@ -80,7 +80,7 @@ async def extract_annotations_with_ai(
     max_retries: int = 3
 ) -> BoundingBoxResponse:
     """
-    Extract annotations using AI with error handling via ADK Runner.
+    Extract annotations using AI with manual caching.
     
     Args:
         image_path: Path to the image file

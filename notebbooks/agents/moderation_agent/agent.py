@@ -30,7 +30,7 @@ class ModerationResponse(BaseModel):
     )
 
 
-# Define Moderation Agent
+# Define static Moderation Agent (for backward compatibility)
 moderation_agent = Agent(
     model="gemini-3-pro-preview",
     name="grading_moderator",
@@ -58,7 +58,7 @@ async def moderate_grades_with_ai(
     max_retries: int = 3
 ) -> List[Dict[str, Any]]:
     """
-    Moderate grades using the moderation agent.
+    Moderate grades using the moderation agent with manual caching.
     
     Args:
         question_text: The question text

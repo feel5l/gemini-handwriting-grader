@@ -32,6 +32,7 @@ class StudentPerformanceResponse(BaseModel):
     )
 
 
+# Define static student performance agent (for backward compatibility)
 student_performance_agent = Agent(
     model="gemini-3-flash-preview",
     name="student_performance_generator",
@@ -63,7 +64,7 @@ async def generate_student_report_with_ai(
     max_retries: int = 3,
 ) -> str:
     """
-    Generate student performance report using AI.
+    Generate student performance report using AI with manual caching.
     
     Args:
         student_id: Student identifier

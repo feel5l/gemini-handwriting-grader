@@ -1,6 +1,7 @@
 """Grading agent module."""
 
 from .agent import (
+    GradingResult,
     grading_agent,
     ocr_grading_agent,
     grade_answer_with_ai,
@@ -8,6 +9,7 @@ from .agent import (
 )
 
 __all__ = [
+    'GradingResult',
     'grading_agent',
     'ocr_grading_agent',
     'grade_answer_with_ai',

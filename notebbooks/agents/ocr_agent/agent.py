@@ -2,7 +2,6 @@
 
 import os
 import time
-import hashlib
 from typing import Optional
 from google.genai import types
 from google.adk.agents.llm_agent import Agent
@@ -10,12 +9,13 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
 from ..common import setup_agent_environment
-import grading_utils
+from ..caching_callback import create_ocr_cache_callbacks
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
 
-# Define the OCR agent
+
+# Define static OCR agent (for backward compatibility)
 ocr_agent = Agent(
     model="gemini-3-flash-preview",
     name="ocr_extractor",
@@ -39,7 +39,7 @@ async def perform_ocr_with_ai(
     max_retries: int = 3
 ) -> str:
     """
-    Perform OCR using the OCR agent with caching.
+    Perform OCR using the OCR agent with callback-based caching.
     
     Args:
         prompt: Instructions for text extraction
@@ -65,23 +65,30 @@ async def perform_ocr_with_ai(
         logger.error("No image data provided for OCR")
         return ""
 
-    # Check cache
-    cache_key = None
-    try:
-        image_hash = hashlib.sha256(image_data).hexdigest()
-        cache_key = grading_utils.get_cache_key(
-            "ocr",
-            model="gemini-3-flash-preview",
-            prompt=prompt,
-            image_hash=image_hash
-        )
-        cached_result = grading_utils.get_from_cache(cache_key)
-        if cached_result and isinstance(cached_result, dict):
-            if "result" in cached_result:
-                logger.info(f"OCR cache hit for hash {image_hash[:8]}")
-                return cached_result["result"]
-    except Exception as e:
-        logger.warning(f"Cache lookup failed: {e}")
+    # Create caching callbacks
+    before_callback, after_callback = create_ocr_cache_callbacks(
+        prompt=prompt,
+        image_data=image_data,
+        model="gemini-3-flash-preview"
+    )
+    
+    # Create OCR agent with caching callbacks
+    ocr_agent_cached = Agent(
+        model="gemini-3-flash-preview",
+        name="ocr_extractor",
+        description="Agent for extracting text from images.",
+        instruction=(
+            "You are an expert OCR assistant. "
+            "Extract text from images exactly as requested."
+        ),
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.0,
+            top_p=0.5,
+            max_output_tokens=4096,
+        ),
+        before_model_callback=before_callback,
+        after_model_callback=after_callback
+    )
 
     # Perform OCR with retry
     for attempt in range(max_retries):
@@ -94,7 +101,7 @@ async def perform_ocr_with_ai(
             )
 
             runner = Runner(
-                agent=ocr_agent,
+                agent=ocr_agent_cached,
                 app_name="ocr_extractor",
                 session_service=session_service,
             )
@@ -124,13 +131,7 @@ async def perform_ocr_with_ai(
                     final_text = event.content.parts[0].text
 
             if final_text:
-                result_text = final_text.strip()
-                if cache_key:
-                    grading_utils.save_to_cache(
-                        cache_key,
-                        {"result": result_text}
-                    )
-                return result_text
+                return final_text.strip()
             
             logger.warning(f"Empty OCR response on attempt {attempt + 1}")
 
