@@ -27,7 +27,7 @@ ocr_agent = Agent(
     generate_content_config=types.GenerateContentConfig(
         temperature=0.0,
         top_p=0.5,
-        max_output_tokens=4096,
+        max_output_tokens=65535,
     ),
 )
 
@@ -84,7 +84,7 @@ async def perform_ocr_with_ai(
         generate_content_config=types.GenerateContentConfig(
             temperature=0.0,
             top_p=0.5,
-            max_output_tokens=4096,
+            max_output_tokens=65535,
         ),
         before_model_callback=before_callback,
         after_model_callback=after_callback

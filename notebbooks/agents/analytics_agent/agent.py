@@ -47,7 +47,7 @@ Keep it under 220 words and avoid restating the input verbatim.""",
     generate_content_config=types.GenerateContentConfig(
         temperature=0.35,
         top_p=0.9,
-        max_output_tokens=1536,
+        max_output_tokens=65535,
         response_mime_type="application/json",
     ),
 )
@@ -100,7 +100,7 @@ async def generate_student_report_with_ai(
         generate_content_config=types.GenerateContentConfig(
             temperature=0.7,
             top_p=0.9,
-            max_output_tokens=8192,
+            max_output_tokens=65535,
             response_mime_type="application/json",
         ),
         before_model_callback=before_callback,
@@ -241,7 +241,7 @@ Focus on patterns; do not restate student names or IDs.""",
     generate_content_config=types.GenerateContentConfig(
         temperature=0.35,
         top_p=0.9,
-        max_output_tokens=1536,
+        max_output_tokens=65535,
     ),
 )
 
@@ -262,7 +262,7 @@ class_overview_infograph_generator = Agent(
     output_key="output",
     generate_content_config=types.GenerateContentConfig(
         temperature=0.1,
-        max_output_tokens=2048,
+        max_output_tokens=65535,
         response_mime_type="application/json",
     ),
 )
@@ -469,7 +469,7 @@ Write a concise analysis (approx 150 words) specifically for this question:
     output_key="question_analysis_draft",
     generate_content_config=types.GenerateContentConfig(
         temperature=0.3,
-        max_output_tokens=1024,
+        max_output_tokens=65535,
     ),
 )
 
@@ -490,7 +490,7 @@ question_insight_infograph_generator = Agent(
     output_key="output",
     generate_content_config=types.GenerateContentConfig(
         temperature=0.1,
-        max_output_tokens=1024,
+        max_output_tokens=65535,
         response_mime_type="application/json",
     ),
 )

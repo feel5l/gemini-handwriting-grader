@@ -53,7 +53,7 @@ grading_agent = Agent(
     generate_content_config=types.GenerateContentConfig(
         temperature=0.0,
         top_p=0.3,
-        max_output_tokens=8192,
+        max_output_tokens=65535,
         response_mime_type="application/json",
     ),
 )
@@ -71,7 +71,7 @@ ocr_agent = Agent(
     generate_content_config=types.GenerateContentConfig(
         temperature=0.0,
         top_p=0.5,
-        max_output_tokens=4096,
+        max_output_tokens=65535,
     ),
 )
 
@@ -137,7 +137,7 @@ async def grade_answer_with_ai(
         generate_content_config=types.GenerateContentConfig(
             temperature=0.0,
             top_p=0.3,
-            max_output_tokens=8192,
+            max_output_tokens=65535,
             response_mime_type="application/json",
         ),
         before_model_callback=before_callback,
@@ -238,7 +238,7 @@ async def grade_answer_with_ocr_and_ai(
         generate_content_config=types.GenerateContentConfig(
             temperature=0.0,
             top_p=0.5,
-            max_output_tokens=4096,
+            max_output_tokens=65535,
         ),
     )
     
@@ -262,7 +262,7 @@ async def grade_answer_with_ocr_and_ai(
         generate_content_config=types.GenerateContentConfig(
             temperature=0.0,
             top_p=0.3,
-            max_output_tokens=8192,
+            max_output_tokens=65535,
             response_mime_type="application/json",
         ),
     )

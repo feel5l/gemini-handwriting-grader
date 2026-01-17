@@ -46,7 +46,7 @@ def setup_agent_environment(file_path: str) -> logging.Logger:
         api_key = os.getenv("GOOGLE_API_KEY")
 
         if genai_key and not api_key:
-            os.environ["GOOGLE_API_KEY"] = genai_key
+            os.environ["GOOGLE_API_KEY"] = genai_key            
             logger.info("Mapped GOOGLE_GENAI_API_KEY to GOOGLE_API_KEY for ADK")
         elif api_key:
             logger.info("GOOGLE_API_KEY found in environment")
@@ -86,6 +86,8 @@ async def run_agent_with_retry(
     Raises:
         Exception: If all retry attempts fail
     """
+    import asyncio
+    
     session_service = InMemorySessionService()
     
     if logger is None:
@@ -108,12 +110,33 @@ async def run_agent_with_retry(
                 session_service=session_service,
             )
 
-            async for event in runner.run_async(
-                session_id=session_id,
-                user_id="user",
-                new_message=user_content
-            ):
-                pass
+            logger.info(f"Starting runner.run_async for {app_name}...")
+            event_count = 0
+            last_log_time = time.time()
+            
+            # Add timeout to detect hangs
+            try:
+                async def run_with_logging():
+                    nonlocal event_count, last_log_time
+                    async for event in runner.run_async(
+                        session_id=session_id,
+                        user_id="user",
+                        new_message=user_content
+                    ):
+                        event_count += 1
+                        current_time = time.time()
+                        # Log progress every 30 seconds
+                        if current_time - last_log_time >= 30:
+                            logger.info(f"Still processing... {event_count} events so far ({int(current_time - last_log_time)}s elapsed)")
+                            last_log_time = current_time
+                
+                # 600 second timeout for the entire operation (10 minutes for large documents)
+                await asyncio.wait_for(run_with_logging(), timeout=600.0)
+                logger.info(f"Runner completed after {event_count} events")
+                
+            except asyncio.TimeoutError:
+                logger.error(f"Runner timed out after 600 seconds (processed {event_count} events)")
+                raise TimeoutError(f"Agent execution timed out after 600 seconds")
 
             session = await session_service.get_session(
                 app_name=app_name,

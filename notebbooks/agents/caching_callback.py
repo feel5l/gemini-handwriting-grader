@@ -420,6 +420,8 @@ def create_marking_scheme_cache_callbacks(
         """Check cache before LLM call."""
         agent_name = callback_context.agent_name
         
+        logger.info(f"[{agent_name}] before_callback called - checking cache...")
+        
         try:
             cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
             
@@ -436,18 +438,28 @@ def create_marking_scheme_cache_callbacks(
                 }
                 response_text = json.dumps(response_data, ensure_ascii=False)
                 
-                return LlmResponse(
+                logger.info(f"[{agent_name}] Returning cached response ({len(response_text)} chars)")
+                
+                # Create a minimal LlmResponse without model_name or usage_metadata
+                # to avoid triggering Vertex AI processing
+                cached_response = LlmResponse(
                     content=types.Content(
                         role="model",
                         parts=[types.Part(text=response_text)]
                     )
                 )
+                
+                logger.info(f"[{agent_name}] Cached LlmResponse created successfully")
+                return cached_response
             
-            logger.debug(f"[{agent_name}] Marking scheme cache miss, proceeding with LLM call")
+            logger.info(f"[{agent_name}] Marking scheme cache miss, proceeding with LLM call")
             
         except Exception as e:
-            logger.warning(f"Cache lookup failed: {e}, proceeding with LLM call")
+            logger.error(f"[{agent_name}] Cache lookup failed: {e}", exc_info=True)
+            logger.info(f"[{agent_name}] Proceeding with LLM call due to cache error")
         
+        # Return None to proceed with actual LLM call
+        logger.info(f"[{agent_name}] before_callback returning None - will make LLM call")
         return None
     
     def after_callback(
@@ -455,24 +467,47 @@ def create_marking_scheme_cache_callbacks(
         llm_response: LlmResponse
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
+        agent_name = callback_context.agent_name
+        logger.info(f"[{agent_name}] after_callback called - saving to cache...")
+        
         try:
             if llm_response.content and llm_response.content.parts:
                 response_text = llm_response.content.parts[0].text
                 if response_text:
-                    # Parse JSON response and save as tuple
-                    response_data = json.loads(response_text)
+                    logger.info(f"[{agent_name}] Parsing response ({len(response_text)} chars)")
+                    
+                    # Try to parse JSON response
+                    try:
+                        response_data = json.loads(response_text)
+                    except json.JSONDecodeError as json_err:
+                        logger.error(f"[{agent_name}] JSON parsing failed: {json_err}")
+                        logger.error(f"[{agent_name}] Response preview: {response_text[:500]}...")
+                        logger.error(f"[{agent_name}] Response end: ...{response_text[-500:]}")
+                        # Don't cache invalid JSON
+                        return llm_response
+                    
                     questions_data = response_data.get("questions", [])
                     general_guide = response_data.get("general_grading_guide", "")
                     
+                    if not questions_data:
+                        logger.warning(f"[{agent_name}] No questions in response, not caching")
+                        return llm_response
+                    
+                    logger.info(f"[{agent_name}] Saving {len(questions_data)} questions to cache")
                     grading_utils.save_to_cache(
                         cache_key,
                         (questions_data, general_guide),
                         cache_dir=cache_dir
                     )
-                    logger.debug(f"Saved marking scheme to cache (key: {cache_key[1][:8]}...)")
+                    logger.info(f"[{agent_name}] Saved marking scheme to cache (key: {cache_key[1][:8]}...)")
+                else:
+                    logger.warning(f"[{agent_name}] No text in response parts")
+            else:
+                logger.warning(f"[{agent_name}] No content or parts in LLM response")
         except Exception as e:
-            logger.warning(f"Failed to save to cache: {e}")
+            logger.error(f"[{agent_name}] Failed to save to cache: {e}", exc_info=True)
         
+        logger.info(f"[{agent_name}] after_callback returning response")
         return llm_response
     
     return before_callback, after_callback
@@ -649,6 +684,235 @@ def create_analytics_cache_callbacks(
                         cache_dir=cache_dir
                     )
                     logger.debug(f"Saved analytics result to cache (key: {cache_key[1][:8]}...)")
+        except Exception as e:
+            logger.warning(f"Failed to save to cache: {e}")
+        
+        return llm_response
+    
+    return before_callback, after_callback
+
+
+def create_marking_scheme_verification_cache_callbacks(
+    questions_data: list,
+    model: str = "gemini-3-flash-preview",
+    cache_dir: str = "../cache"
+):
+    """
+    Create before and after callback functions for marking scheme verification.
+    
+    This caches the FINAL formatted output (after both searcher and formatter agents).
+    The callback should be attached to the formatter agent (last in sequence).
+    
+    Args:
+        questions_data: List of question dictionaries to verify
+        model: Model name
+        cache_dir: Cache directory
+        
+    Returns:
+        Tuple of (before_callback, after_callback)
+    """
+    import json
+    
+    # Generate hash from questions data
+    questions_str = json.dumps(questions_data, sort_keys=True)
+    questions_hash = hashlib.sha256(questions_str.encode("utf-8")).hexdigest()
+    cache_key = grading_utils.get_cache_key(
+        "marking_scheme_verification",
+        model=model,
+        questions_hash=questions_hash
+    )
+    
+    def before_callback(
+        callback_context: CallbackContext,
+        llm_request: LlmRequest
+    ) -> Optional[LlmResponse]:
+        """Check cache before LLM call."""
+        agent_name = callback_context.agent_name
+        
+        try:
+            cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
+            
+            if cached_result:
+                logger.info(
+                    f"[{agent_name}] Verification cache hit (key: {cache_key[1][:8]}...)"
+                )
+                
+                # Convert cached tuple/list to proper JSON format
+                # cached_result is [verification_items, general_feedback] (saved as JSON array)
+                if isinstance(cached_result, (list, tuple)) and len(cached_result) == 2:
+                    # Extract items and feedback from the cached tuple/list
+                    verification_items = cached_result[0]
+                    general_feedback = cached_result[1]
+                    
+                    response_data = {
+                        "items": verification_items,
+                        "general_feedback": general_feedback
+                    }
+                    response_text = json.dumps(response_data, ensure_ascii=False)
+                elif isinstance(cached_result, dict):
+                    # Already in correct format
+                    response_text = json.dumps(cached_result, ensure_ascii=False)
+                else:
+                    logger.warning(f"Unexpected cache format: {type(cached_result)}")
+                    response_text = str(cached_result)
+                
+                return LlmResponse(
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part(text=response_text)]
+                    )
+                )
+            
+            logger.debug(f"[{agent_name}] Verification cache miss, proceeding with LLM call")
+            
+        except Exception as e:
+            logger.warning(f"Cache lookup failed: {e}, proceeding with LLM call")
+        
+        return None
+    
+    def after_callback(
+        callback_context: CallbackContext,
+        llm_response: LlmResponse
+    ) -> LlmResponse:
+        """Save formatted response to cache after LLM call."""
+        try:
+            if llm_response.content and llm_response.content.parts:
+                response_text = llm_response.content.parts[0].text
+                if response_text:
+                    # Parse JSON response
+                    response_data = json.loads(response_text)
+                    
+                    # Extract items and general_feedback
+                    verification_items = response_data.get("items", [])
+                    general_feedback = response_data.get("general_feedback", "")
+                    
+                    if verification_items:
+                        grading_utils.save_to_cache(
+                            cache_key,
+                            (verification_items, general_feedback),
+                            cache_dir=cache_dir
+                        )
+                        logger.debug(f"Saved verification to cache (key: {cache_key[1][:8]}...)")
+        except Exception as e:
+            logger.warning(f"Failed to save to cache: {e}")
+        
+        return llm_response
+    
+    return before_callback, after_callback
+
+
+def create_verification_searcher_cache_callbacks(
+    questions_data: list,
+    model: str = "gemini-3-flash-preview",
+    cache_dir: str = "../cache"
+):
+    """
+    Create before and after callback functions for verification searcher agent.
+    
+    This caches the searcher's output (text with citations from Google Search).
+    The after_callback combines citation extraction with caching.
+    
+    Args:
+        questions_data: List of question dictionaries to verify
+        model: Model name
+        cache_dir: Cache directory
+        
+    Returns:
+        Tuple of (before_callback, after_callback)
+    """
+    import json
+    
+    # Generate hash from questions data
+    questions_str = json.dumps(questions_data, sort_keys=True)
+    questions_hash = hashlib.sha256(questions_str.encode("utf-8")).hexdigest()
+    cache_key = grading_utils.get_cache_key(
+        "marking_scheme_verification_searcher",
+        model=model,
+        questions_hash=questions_hash
+    )
+    
+    def before_callback(
+        callback_context: CallbackContext,
+        llm_request: LlmRequest
+    ) -> Optional[LlmResponse]:
+        """Check cache before LLM call."""
+        agent_name = callback_context.agent_name
+        
+        try:
+            cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
+            
+            if cached_result:
+                logger.info(
+                    f"[{agent_name}] Verification searcher cache hit (key: {cache_key[1][:8]}...)"
+                )
+                
+                # Cached result is the text with citations
+                if isinstance(cached_result, dict) and 'result' in cached_result:
+                    response_text = cached_result['result']
+                else:
+                    response_text = str(cached_result)
+                
+                return LlmResponse(
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part(text=response_text)]
+                    )
+                )
+            
+            logger.debug(f"[{agent_name}] Verification searcher cache miss, proceeding with LLM call")
+            
+        except Exception as e:
+            logger.warning(f"Cache lookup failed: {e}, proceeding with LLM call")
+        
+        return None
+    
+    def after_callback(
+        callback_context: CallbackContext,
+        llm_response: LlmResponse
+    ) -> LlmResponse:
+        """
+        Combined callback: Add citations from grounding metadata AND save to cache.
+        
+        This combines citation extraction with caching in a single callback.
+        """
+        # First, add citations if grounding metadata is present
+        if (llm_response.grounding_metadata and
+            llm_response.grounding_metadata.grounding_chunks):
+            
+            if llm_response.content and llm_response.content.parts:
+                citation_text = "\n\nCitations:\n"
+                found_citations = False
+                
+                for chunk in llm_response.grounding_metadata.grounding_chunks:
+                    if chunk.web:
+                        found_citations = True
+                        citation_text += (
+                            f"  - [{chunk.web.title}]({chunk.web.uri})\n"
+                        )
+                
+                if found_citations:
+                    # Append to first text part if it exists
+                    for part in llm_response.content.parts:
+                        if part.text:
+                            part.text += citation_text
+                            break
+                    else:
+                        # Add new part if no text part exists
+                        llm_response.content.parts.append(
+                            types.Part(text=citation_text)
+                        )
+        
+        # Then, save to cache (with citations included)
+        try:
+            if llm_response.content and llm_response.content.parts:
+                response_text = llm_response.content.parts[0].text
+                if response_text:
+                    grading_utils.save_to_cache(
+                        cache_key,
+                        {"result": response_text},
+                        cache_dir=cache_dir
+                    )
+                    logger.debug(f"Saved verification searcher result to cache (key: {cache_key[1][:8]}...)")
         except Exception as e:
             logger.warning(f"Failed to save to cache: {e}")
         
