@@ -89,10 +89,11 @@ def create_ocr_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
-        if not cache_enabled:
-            return None
-            
         agent_name = callback_context.agent_name
+        
+        if not cache_enabled:
+            logger.info(f"[{agent_name}] OCR caching DISABLED by AGENT_CACHE_ENABLED=FALSE")
+            return None
         
         logger.debug(f"[{agent_name}] OCR before_callback - checking cache (key: {cache_key[1][:16]}...)")
         
@@ -203,10 +204,11 @@ def create_grading_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
-        if not cache_enabled:
-            return None
-            
         agent_name = callback_context.agent_name
+        
+        if not cache_enabled:
+            logger.info(f"[{agent_name}] Grading caching DISABLED by AGENT_CACHE_ENABLED=FALSE")
+            return None
         
         logger.debug(f"[{agent_name}] Grading before_callback - checking cache (key: {cache_key[1][:16]}...)")
         
@@ -319,10 +321,11 @@ def create_ocr_grading_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
-        if not cache_enabled:
-            return None
-            
         agent_name = callback_context.agent_name
+        
+        if not cache_enabled:
+            logger.info(f"[{agent_name}] OCR+Grading caching DISABLED by AGENT_CACHE_ENABLED=FALSE")
+            return None
         
         try:
             cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
@@ -425,10 +428,11 @@ def create_moderation_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
-        if not cache_enabled:
-            return None
-            
         agent_name = callback_context.agent_name
+        
+        if not cache_enabled:
+            logger.info(f"[{agent_name}] Moderation caching DISABLED by AGENT_CACHE_ENABLED=FALSE")
+            return None
         
         try:
             cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
@@ -524,10 +528,11 @@ def create_marking_scheme_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
-        if not cache_enabled:
-            return None
-            
         agent_name = callback_context.agent_name
+        
+        if not cache_enabled:
+            logger.info(f"[{agent_name}] Marking scheme caching DISABLED by AGENT_CACHE_ENABLED=FALSE")
+            return None
         
         logger.debug(f"[{agent_name}] before_callback called - checking cache...")
         
@@ -661,10 +666,11 @@ def create_annotation_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
-        if not cache_enabled:
-            return None
-            
         agent_name = callback_context.agent_name
+        
+        if not cache_enabled:
+            logger.info(f"[{agent_name}] Annotation caching DISABLED by AGENT_CACHE_ENABLED=FALSE")
+            return None
         
         try:
             cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
@@ -763,10 +769,11 @@ def create_analytics_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
-        if not cache_enabled:
-            return None
-            
         agent_name = callback_context.agent_name
+        
+        if not cache_enabled:
+            logger.info(f"[{agent_name}] Analytics caching DISABLED by AGENT_CACHE_ENABLED=FALSE")
+            return None
         
         try:
             cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
@@ -869,10 +876,11 @@ def create_marking_scheme_verification_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
-        if not cache_enabled:
-            return None
-            
         agent_name = callback_context.agent_name
+        
+        if not cache_enabled:
+            logger.info(f"[{agent_name}] Verification caching DISABLED by AGENT_CACHE_ENABLED=FALSE")
+            return None
         
         try:
             cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
@@ -990,10 +998,11 @@ def create_verification_searcher_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
-        if not cache_enabled:
-            return None
-            
         agent_name = callback_context.agent_name
+        
+        if not cache_enabled:
+            logger.info(f"[{agent_name}] Verification searcher caching DISABLED by AGENT_CACHE_ENABLED=FALSE")
+            return None
         
         try:
             cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
