@@ -26,7 +26,18 @@ def setup_agent_environment(file_path: str) -> logging.Logger:
     # Setup path to import grading_utils (../../ relative to agent file)
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(file_path), "../../")))
 
-    # Get log level from environment variable (default: INFO)
+    # Initialize environment and credentials FIRST
+    try:
+        project_root = os.path.abspath(
+            os.path.join(os.path.dirname(file_path), "../../../")
+        )
+        env_path = os.path.join(project_root, ".env")
+        load_dotenv(env_path)
+    except Exception as e:
+        # Log error later after logger is set up
+        pass
+
+    # Get log level from environment variable (default: INFO) - AFTER loading .env
     log_level_str = os.getenv("AGENT_LOG_LEVEL", "INFO").upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
     
@@ -38,14 +49,8 @@ def setup_agent_environment(file_path: str) -> logging.Logger:
     logger = logging.getLogger(os.path.basename(os.path.dirname(file_path)))
     logger.setLevel(log_level)
 
-    # Initialize environment and credentials
+    # Continue with API key setup
     try:
-        project_root = os.path.abspath(
-            os.path.join(os.path.dirname(file_path), "../../../")
-        )
-        env_path = os.path.join(project_root, ".env")
-        load_dotenv(env_path)
-
         # Ensure GOOGLE_API_KEY is set for ADK
         genai_key = os.getenv("GOOGLE_GENAI_API_KEY")
         api_key = os.getenv("GOOGLE_API_KEY")
