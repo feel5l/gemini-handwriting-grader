@@ -15,23 +15,6 @@ from ..caching_callback import create_ocr_cache_callbacks
 logger = setup_agent_environment(__file__)
 
 
-# Define static OCR agent (for backward compatibility)
-ocr_agent = Agent(
-    model="gemini-3-flash-preview",
-    name="ocr_extractor",
-    description="Agent for extracting text from images.",
-    instruction=(
-        "You are an expert OCR assistant. "
-        "Extract text from images exactly as requested."
-    ),
-    generate_content_config=types.GenerateContentConfig(
-        temperature=0.0,
-        top_p=0.5,
-        max_output_tokens=65535,
-    ),
-)
-
-
 async def perform_ocr_with_ai(
     prompt: str,
     image_path: Optional[str] = None,
@@ -79,7 +62,9 @@ async def perform_ocr_with_ai(
         description="Agent for extracting text from images.",
         instruction=(
             "You are an expert OCR assistant. "
-            "Extract text from images exactly as requested."
+            "Extract text from images exactly as requested. "
+            "If the image is blank, empty, or contains no readable text, "
+            "respond with an empty string or 'No text found'."
         ),
         generate_content_config=types.GenerateContentConfig(
             temperature=0.0,

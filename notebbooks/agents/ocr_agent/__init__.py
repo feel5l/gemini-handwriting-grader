@@ -1,5 +1,5 @@
 """OCR agent module."""
 
-from .agent import ocr_agent, perform_ocr_with_ai
+from .agent import perform_ocr_with_ai
 
-__all__ = ['ocr_agent', 'perform_ocr_with_ai']
+__all__ = ['perform_ocr_with_ai']

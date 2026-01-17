@@ -48,6 +48,8 @@ text = await perform_ocr_with_ai(
 )
 ```
 
+**Note:** Agents are created dynamically with callback-based caching for optimal performance.
+
 ### 2. Grading Agent
 **Purpose:** Grade student answers against marking schemes
 
@@ -66,6 +68,8 @@ result = await grade_answer_with_ai(
     total_marks=5
 )
 ```
+
+**Note:** Agents are created dynamically with callback-based caching for optimal performance.
 
 ### 3. Moderation Agent
 **Purpose:** Ensure grading consistency across students
@@ -146,6 +150,12 @@ The `common.py` module provides shared utilities:
 - `run_agent_with_retry(agent, user_content, app_name, output_type, max_retries, logger, output_key)` - Execute agent with retry logic
 
 ## Features
+
+### Dynamic Agent Creation
+All agents are created dynamically with callback-based caching:
+- Agents are instantiated on-demand with specific configurations
+- Caching callbacks are attached at creation time
+- No static agent instances - cleaner and more flexible
 
 ### Type Safety
 All functions have complete type hints:

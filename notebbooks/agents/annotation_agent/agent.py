@@ -30,12 +30,8 @@ class BoundingBoxResponse(BaseModel):
     )
 
 
-# Define static annotation agent (for backward compatibility)
-annotation_agent = Agent(
-    model="gemini-3-flash-preview",
-    name="annotation_extractor",
-    description="Agent for extracting bounding boxes from exam images.",
-    instruction="""Extract the coordinates of bounding boxes for each question/answer cell from the table in the image.
+# Static instruction for annotation extraction (reusable)
+ANNOTATION_INSTRUCTION = """Extract the coordinates of bounding boxes for each question/answer cell from the table in the image.
 
 Instructions:
 - Identify all table cells that contain question numbers (like "1", "2", "3", "4", "5", etc.)
@@ -60,16 +56,7 @@ Important:
 - Extract the question number text exactly as shown (including letters like "a", "b", "c" for sub-questions)
 - Do not include the period after the question number in the label
 - Focus on cells where students write answers, not header cells or instruction text
-- Ensure NAME, ID, and CLASS fields are properly identified for student information""",
-    output_schema=BoundingBoxResponse,
-    output_key="output",
-    generate_content_config=types.GenerateContentConfig(
-        temperature=0.0,
-        top_p=0.5,
-        max_output_tokens=65535,
-        response_mime_type="application/json",
-    ),
-)
+- Ensure NAME, ID, and CLASS fields are properly identified for student information"""
 
 
 
@@ -109,7 +96,7 @@ async def extract_annotations_with_ai(
         model="gemini-3-flash-preview",
         name="annotation_extractor",
         description="Agent for extracting bounding boxes from exam images.",
-        instruction=annotation_agent.instruction,  # Reuse the detailed instruction
+        instruction=ANNOTATION_INSTRUCTION,
         output_schema=BoundingBoxResponse,
         output_key="output",
         generate_content_config=types.GenerateContentConfig(

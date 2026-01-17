@@ -113,6 +113,7 @@ async def run_agent_with_retry(
             logger.info(f"Starting runner.run_async for {app_name}...")
             event_count = 0
             last_log_time = time.time()
+            start_time = time.time()
             
             # Add timeout to detect hangs
             try:
@@ -125,18 +126,30 @@ async def run_agent_with_retry(
                     ):
                         event_count += 1
                         current_time = time.time()
-                        # Log progress every 30 seconds
-                        if current_time - last_log_time >= 30:
-                            logger.info(f"Still processing... {event_count} events so far ({int(current_time - last_log_time)}s elapsed)")
+                        
+                        # Log event details
+                        event_type = type(event).__name__
+                        logger.debug(f"Event {event_count}: {event_type}")
+                        
+                        # Log progress every 10 seconds
+                        if current_time - last_log_time >= 10:
+                            elapsed = int(current_time - start_time)
+                            logger.info(f"Still processing {app_name}... {event_count} events, {elapsed}s elapsed")
                             last_log_time = current_time
+                        
+                        # Check if this is a final response
+                        if event.is_final_response():
+                            logger.info(f"Received final response event for {app_name}")
                 
                 # 600 second timeout for the entire operation (10 minutes for large documents)
                 await asyncio.wait_for(run_with_logging(), timeout=600.0)
-                logger.info(f"Runner completed after {event_count} events")
+                elapsed = int(time.time() - start_time)
+                logger.info(f"Runner completed after {event_count} events in {elapsed}s")
                 
             except asyncio.TimeoutError:
-                logger.error(f"Runner timed out after 600 seconds (processed {event_count} events)")
-                raise TimeoutError(f"Agent execution timed out after 600 seconds")
+                elapsed = int(time.time() - start_time)
+                logger.error(f"Runner timed out after {elapsed}s (processed {event_count} events)")
+                raise TimeoutError(f"Agent execution timed out after {elapsed} seconds")
 
             session = await session_service.get_session(
                 app_name=app_name,

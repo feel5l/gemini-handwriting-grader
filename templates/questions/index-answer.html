@@ -173,7 +173,7 @@
                         <input type="text" id="mark-{{row["page"]}}"
                                class="mark" 
                                data-similarity="{{row["Similarity"]}}"
-                               value="{{row["Answer"]}}"
+                               value="{{row["Answer"] if row["Answer"] is not none and row["Answer"] == row["Answer"] else ''}}"
                                required /> 
                         <span id="mark-{{row["page"]}}-locked" class="lock"></span>
                     </td>

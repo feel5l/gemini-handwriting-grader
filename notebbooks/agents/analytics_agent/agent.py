@@ -30,27 +30,14 @@ class StudentPerformanceResponse(BaseModel):
     )
 
 
-# Define static student performance agent (for backward compatibility)
-student_performance_agent = Agent(
-    model="gemini-3-flash-preview",
-    name="student_performance_generator",
-    description="Agent for generating individual student performance reports.",
-    instruction="""You are an instructor drafting a concise performance report.
+# Static instruction for student performance agent (reusable)
+STUDENT_PERFORMANCE_INSTRUCTION = """You are an instructor drafting a concise performance report.
 
 Write:
 - 2-3 sentence overall summary of strengths and weaknesses.
 - One short bullet per question with actionable feedback tied to the marking scheme.
 - 2 concrete next-step study suggestions focused on the weakest skills.
-Keep it under 220 words and avoid restating the input verbatim.""",
-    output_schema=StudentPerformanceResponse,
-    output_key="output",
-    generate_content_config=types.GenerateContentConfig(
-        temperature=0.35,
-        top_p=0.9,
-        max_output_tokens=65535,
-        response_mime_type="application/json",
-    ),
-)
+Keep it under 220 words and avoid restating the input verbatim."""
 
 
 async def generate_student_report_with_ai(
@@ -94,7 +81,7 @@ async def generate_student_report_with_ai(
         model="gemini-3-flash-preview",
         name="student_performance_generator",
         description="Agent for generating personalized student performance reports.",
-        instruction=student_performance_agent.instruction,  # Reuse the detailed instruction
+        instruction=STUDENT_PERFORMANCE_INSTRUCTION,
         output_schema=StudentPerformanceResponse,
         output_key="output",
         generate_content_config=types.GenerateContentConfig(
@@ -268,16 +255,6 @@ class_overview_infograph_generator = Agent(
 )
 
 
-class_overview_agent = SequentialAgent(
-    name="class_overview_agent",
-    description="Sequential agent for generating class overview text and infographic.",
-    sub_agents=[
-        class_overview_text_generator,
-        class_overview_infograph_generator
-    ]
-)
-
-
 async def generate_class_overview_with_ai(
     summary_payload: Dict[str, Any],
     sample_reports: List[str],
@@ -300,27 +277,73 @@ async def generate_class_overview_with_ai(
     # Import callback creator
     from ..caching_callback import create_analytics_cache_callbacks
     
-    # Create caching callbacks
-    payload_data = {
+    # Create separate caching callbacks for each sub-agent
+    # Text generator caching
+    text_payload = {
         "summary": summary_payload,
-        "reports": report_blob
+        "reports": report_blob,
+        "stage": "text_generation"
     }
-    before_callback, after_callback = create_analytics_cache_callbacks(
-        cache_type="class_overview_report",
-        payload_data=payload_data,
+    before_callback_text, after_callback_text = create_analytics_cache_callbacks(
+        cache_type="class_overview_text",
+        payload_data=text_payload,
         model="gemini-3-flash-preview"
     )
     
-    # Create class overview agent with caching callbacks
+    # Infograph generator caching
+    infograph_payload = {
+        "summary": summary_payload,
+        "reports": report_blob,
+        "stage": "infograph_generation"
+    }
+    before_callback_infograph, after_callback_infograph = create_analytics_cache_callbacks(
+        cache_type="class_overview_infograph",
+        payload_data=infograph_payload,
+        model="gemini-3-flash-preview"
+    )
+    
+    # Create text generator with caching
+    class_overview_text_generator_cached = Agent(
+        model="gemini-3-flash-preview",
+        name="class_overview_text_generator",
+        description="Agent for generating class-level performance overview text.",
+        instruction=class_overview_text_generator.instruction,
+        output_key="overview_text_draft",
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.35,
+            top_p=0.9,
+            max_output_tokens=65535,
+        ),
+        before_model_callback=before_callback_text,
+        after_model_callback=after_callback_text
+    )
+    
+    # Create infograph generator with caching
+    class_overview_infograph_generator_cached = Agent(
+        model="gemini-3-flash-preview",
+        name="class_overview_infograph_generator",
+        description="Orchestrator for creating a class performance infographic.",
+        instruction=class_overview_infograph_generator.instruction,
+        tools=[generate_infographic_tool],
+        output_schema=ClassOverviewResponse,
+        output_key="output",
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.1,
+            max_output_tokens=65535,
+            response_mime_type="application/json",
+        ),
+        before_model_callback=before_callback_infograph,
+        after_model_callback=after_callback_infograph
+    )
+    
+    # Create class overview agent with both cached agents
     class_overview_agent_cached = SequentialAgent(
         name="class_overview_agent",
         description="Sequential agent for generating class overview text and infographic.",
         sub_agents=[
-            class_overview_text_generator,
-            class_overview_infograph_generator
-        ],
-        before_model_callback=before_callback,
-        after_model_callback=after_callback
+            class_overview_text_generator_cached,
+            class_overview_infograph_generator_cached
+        ]
     )
 
     try:
@@ -496,16 +519,6 @@ question_insight_infograph_generator = Agent(
 )
 
 
-question_analysis_agent = SequentialAgent(
-    name="question_analysis_agent",
-    description="Sequential agent for generating question insights and infographic.",
-    sub_agents=[
-        question_insight_text_generator,
-        question_insight_infograph_generator
-    ]
-)
-
-
 async def generate_question_insights_with_ai(
     question_data_payload: Dict[str, Any],
     max_retries: int = 3
@@ -523,23 +536,70 @@ async def generate_question_insights_with_ai(
     # Import callback creator
     from ..caching_callback import create_analytics_cache_callbacks
     
-    # Create caching callbacks
-    before_callback, after_callback = create_analytics_cache_callbacks(
-        cache_type="question_insights",
-        payload_data=question_data_payload,
+    # Create separate caching callbacks for each sub-agent
+    # Text generator caching
+    text_payload = {
+        **question_data_payload,
+        "stage": "text_generation"
+    }
+    before_callback_text, after_callback_text = create_analytics_cache_callbacks(
+        cache_type="question_insights_text",
+        payload_data=text_payload,
         model="gemini-3-flash-preview"
     )
     
-    # Create question analysis agent with caching callbacks
+    # Infograph generator caching
+    infograph_payload = {
+        **question_data_payload,
+        "stage": "infograph_generation"
+    }
+    before_callback_infograph, after_callback_infograph = create_analytics_cache_callbacks(
+        cache_type="question_insights_infograph",
+        payload_data=infograph_payload,
+        model="gemini-3-flash-preview"
+    )
+    
+    # Create text generator with caching
+    question_insight_text_generator_cached = Agent(
+        model="gemini-3-flash-preview",
+        name="question_insight_text_generator",
+        description="Agent for analyzing a single question's performance data.",
+        instruction=question_insight_text_generator.instruction,
+        output_key="question_analysis_draft",
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.3,
+            max_output_tokens=65535,
+        ),
+        before_model_callback=before_callback_text,
+        after_model_callback=after_callback_text
+    )
+    
+    # Create infograph generator with caching
+    question_insight_infograph_generator_cached = Agent(
+        model="gemini-3-flash-preview",
+        name="question_insight_infograph_generator",
+        description="Orchestrator for creating question analysis infographic.",
+        instruction=question_insight_infograph_generator.instruction,
+        tools=[generate_question_infographic_tool],
+        output_schema=QuestionAnalysisResponse,
+        output_key="output",
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.1,
+            max_output_tokens=65535,
+            response_mime_type="application/json",
+        ),
+        before_model_callback=before_callback_infograph,
+        after_model_callback=after_callback_infograph
+    )
+    
+    # Create question analysis agent with both cached agents
     question_analysis_agent_cached = SequentialAgent(
         name="question_analysis_agent",
         description="Sequential agent for generating question-level insights and infographic.",
         sub_agents=[
-            question_insight_text_generator,
-            question_insight_infograph_generator
-        ],
-        before_model_callback=before_callback,
-        after_model_callback=after_callback
+            question_insight_text_generator_cached,
+            question_insight_infograph_generator_cached
+        ]
     )
 
     try:

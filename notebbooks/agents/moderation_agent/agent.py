@@ -29,26 +29,6 @@ class ModerationResponse(BaseModel):
     )
 
 
-# Define static Moderation Agent (for backward compatibility)
-moderation_agent = Agent(
-    model="gemini-3-pro-preview",
-    name="grading_moderator",
-    description="Agent to moderate grading results for consistency.",
-    instruction=(
-        "You are a grading moderator ensuring fairness and consistency. "
-        "Review the student responses and marks."
-    ),
-    output_schema=ModerationResponse,
-    output_key="output",
-    generate_content_config=types.GenerateContentConfig(
-        temperature=0.0,
-        top_p=0.3,
-        max_output_tokens=65535,
-        response_mime_type="application/json",
-    ),
-)
-
-
 async def moderate_grades_with_ai(
     question_text: str,
     marking_scheme_text: str,
@@ -69,10 +49,13 @@ async def moderate_grades_with_ai(
     Returns:
         List of moderation results with moderated marks
     """
+    logger.info(f"Starting moderation for {len(entries)} entries...")
+    
     # Import callback creator
     from ..caching_callback import create_moderation_cache_callbacks
     
     # Create caching callbacks
+    logger.info("Creating moderation cache callbacks...")
     before_callback, after_callback = create_moderation_cache_callbacks(
         question_text=question_text,
         marking_scheme_text=marking_scheme_text,
@@ -82,6 +65,7 @@ async def moderate_grades_with_ai(
     )
     
     # Create moderation agent with caching callbacks
+    logger.info("Creating moderation agent with caching...")
     moderation_agent_cached = Agent(
         model="gemini-3-pro-preview",
         name="grading_moderator",
@@ -119,11 +103,13 @@ Responses:
 {entries_json}"""
 
     try:
+        logger.info("Preparing content for moderation agent...")
         content = types.Content(
             role="user",
             parts=[types.Part(text=prompt)]
         )
         
+        logger.info("Running moderation agent (this may take a while)...")
         result = await run_agent_with_retry(
             agent=moderation_agent_cached,
             user_content=content,
@@ -132,6 +118,8 @@ Responses:
             max_retries=max_retries,
             logger=logger
         )
+        
+        logger.info(f"Moderation agent completed, received {len(result.items)} items")
         
         # Validate items length
         if len(result.items) != len(entries):
@@ -142,6 +130,7 @@ Responses:
             raise ValueError("Moderation item count mismatch")
         
         # Sanitize results
+        logger.info("Sanitizing moderation results...")
         results = []
         for item in result.items:
             item.moderated_mark = max(
@@ -149,7 +138,8 @@ Responses:
                 min(float(total_marks), item.moderated_mark)
             )
             results.append(item.model_dump())
-            
+        
+        logger.info(f"Moderation completed successfully for {len(results)} entries")
         return results
             
     except Exception as e:

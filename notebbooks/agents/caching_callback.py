@@ -57,6 +57,8 @@ def create_ocr_cache_callbacks(
         """Check cache before LLM call."""
         agent_name = callback_context.agent_name
         
+        logger.info(f"[{agent_name}] OCR before_callback - checking cache (key: {cache_key[1][:16]}...)")
+        
         try:
             cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
             
@@ -71,6 +73,8 @@ def create_ocr_cache_callbacks(
                 else:
                     response_text = str(cached_result)
                 
+                logger.info(f"[{agent_name}] Returning cached OCR result ({len(response_text)} chars)")
+                
                 # Return cached response to skip LLM call
                 return LlmResponse(
                     content=types.Content(
@@ -79,10 +83,10 @@ def create_ocr_cache_callbacks(
                     )
                 )
             
-            logger.debug(f"[{agent_name}] OCR cache miss, proceeding with LLM call")
+            logger.info(f"[{agent_name}] OCR cache miss, proceeding with LLM call")
             
         except Exception as e:
-            logger.warning(f"Cache lookup failed: {e}, proceeding with LLM call")
+            logger.warning(f"[{agent_name}] Cache lookup failed: {e}, proceeding with LLM call")
         
         return None
     
@@ -91,18 +95,26 @@ def create_ocr_cache_callbacks(
         llm_response: LlmResponse
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
+        agent_name = callback_context.agent_name
+        logger.info(f"[{agent_name}] OCR after_callback - saving to cache")
+        
         try:
             if llm_response.content and llm_response.content.parts:
                 result_text = llm_response.content.parts[0].text
                 if result_text:
+                    logger.info(f"[{agent_name}] Saving OCR result to cache ({len(result_text)} chars)")
                     grading_utils.save_to_cache(
                         cache_key,
                         {"result": result_text.strip()},
                         cache_dir=cache_dir
                     )
-                    logger.debug(f"Saved OCR result to cache (key: {cache_key[1][:8]}...)")
+                    logger.info(f"[{agent_name}] Saved OCR result to cache (key: {cache_key[1][:8]}...)")
+                else:
+                    logger.warning(f"[{agent_name}] OCR result text is empty")
+            else:
+                logger.warning(f"[{agent_name}] No content or parts in OCR response")
         except Exception as e:
-            logger.warning(f"Failed to save to cache: {e}")
+            logger.warning(f"[{agent_name}] Failed to save to cache: {e}")
         
         return llm_response
     
@@ -147,6 +159,8 @@ def create_grading_cache_callbacks(
         """Check cache before LLM call."""
         agent_name = callback_context.agent_name
         
+        logger.info(f"[{agent_name}] Grading before_callback - checking cache (key: {cache_key[1][:16]}...)")
+        
         try:
             cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
             
@@ -161,6 +175,8 @@ def create_grading_cache_callbacks(
                 else:
                     response_text = str(cached_result)
                 
+                logger.info(f"[{agent_name}] Returning cached grading result ({len(response_text)} chars)")
+                
                 return LlmResponse(
                     content=types.Content(
                         role="model",
@@ -168,10 +184,10 @@ def create_grading_cache_callbacks(
                     )
                 )
             
-            logger.debug(f"[{agent_name}] Grading cache miss, proceeding with LLM call")
+            logger.info(f"[{agent_name}] Grading cache miss, proceeding with LLM call")
             
         except Exception as e:
-            logger.warning(f"Cache lookup failed: {e}, proceeding with LLM call")
+            logger.warning(f"[{agent_name}] Cache lookup failed: {e}, proceeding with LLM call")
         
         return None
     
@@ -180,10 +196,14 @@ def create_grading_cache_callbacks(
         llm_response: LlmResponse
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
+        agent_name = callback_context.agent_name
+        logger.info(f"[{agent_name}] Grading after_callback - saving to cache")
+        
         try:
             if llm_response.content and llm_response.content.parts:
                 response_text = llm_response.content.parts[0].text
                 if response_text:
+                    logger.info(f"[{agent_name}] Parsing grading response ({len(response_text)} chars)")
                     # Parse JSON response and save
                     response_data = json.loads(response_text)
                     grading_utils.save_to_cache(
@@ -191,9 +211,13 @@ def create_grading_cache_callbacks(
                         response_data,
                         cache_dir=cache_dir
                     )
-                    logger.debug(f"Saved grading result to cache (key: {cache_key[1][:8]}...)")
+                    logger.info(f"[{agent_name}] Saved grading result to cache (key: {cache_key[1][:8]}...)")
+                else:
+                    logger.warning(f"[{agent_name}] Grading response text is empty")
+            else:
+                logger.warning(f"[{agent_name}] No content or parts in grading response")
         except Exception as e:
-            logger.warning(f"Failed to save to cache: {e}")
+            logger.warning(f"[{agent_name}] Failed to save to cache: {e}")
         
         return llm_response
     

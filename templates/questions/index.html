@@ -220,7 +220,7 @@
                             <img src="../../{{row["Image"]}}" 
                                  id="crop-{{row["page"]}}" 
                                  class="answerImage crop-{{row["page"]}}"
-                                 alt="{{row["Answer"]}}" 
+                                 alt="{{row["Answer"] if row["Answer"] is not none and row["Answer"] == row["Answer"] else ''}}" 
                                  data-left="{{row["left"]}}"
                                  data-top="{{row["top"]}}"
                                  data-width="{{row["width"]}}"
@@ -228,7 +228,7 @@
                             />
                         </div>   
                     </td>
-                    <td>{{row["Answer"]}}</td>  
+                    <td>{{row["Answer"] if row["Answer"] is not none and row["Answer"] == row["Answer"] else ''}}</td>  
                     <td>
                         <input type="number" id="mark-{{row["page"]}}" min="0" value="{{row["Mark"]}}" max="1" step="1" 
                                class="mark" 
