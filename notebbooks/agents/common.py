@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
+from .config_loader import config
 
 T = TypeVar('T')
 
@@ -37,8 +38,8 @@ def setup_agent_environment(file_path: str) -> logging.Logger:
         # Log error later after logger is set up
         pass
 
-    # Get log level from environment variable (default: INFO) - AFTER loading .env
-    log_level_str = os.getenv("AGENT_LOG_LEVEL", "INFO").upper()
+    # Get log level from config.yaml (default: INFO)
+    log_level_str = config.log_level
     log_level = getattr(logging, log_level_str, logging.INFO)
     
     # Configure logging

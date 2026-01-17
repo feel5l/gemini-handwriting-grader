@@ -351,9 +351,55 @@ pip install -r requirements.txt
 ```
 
 ### **API Configuration**
-- **Google Gemini API**: Required for AI processing
-- **SMTP Server**: Required for email distribution (Step 7)
-- **Configuration Files**: `.env` for API keys, `smtp.config` for email
+
+#### **1. API Key Setup (`.env` file)**
+Create a `.env` file in the project root with your Google Gemini API key:
+
+```env
+# Get your API key from: https://aistudio.google.com/apikey
+GOOGLE_GENAI_API_KEY=your-api-key-here
+```
+
+#### **2. Application Settings (`config.yaml` file)**
+All other configuration settings are in `config.yaml`:
+
+```yaml
+# Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+logging:
+  level: INFO
+
+# Caching configuration
+caching:
+  enabled: true  # Master cache control
+  agents:
+    ocr: true
+    grading: true
+    moderation: true
+    marking_scheme: true
+    annotation: true
+    analytics: true
+
+# AI Models for each agent
+models:
+  ocr: gemini-2.5-flash
+  grading: gemini-3-flash-preview
+  moderation: gemini-3-pro-preview
+  marking_scheme: gemini-3-flash-preview
+  annotation: gemini-3-flash-preview
+  analytics: gemini-3-flash-preview
+  analytics_image: gemini-3-pro-image-preview
+```
+
+**Quick Setup**:
+```bash
+python3 setup_config.py  # Creates config files from templates
+python3 test_config.py   # Verifies configuration
+```
+
+**Note**: See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for complete configuration documentation.
+
+#### **3. Email Configuration (Optional)**
+For email distribution (Step 7), configure `smtp.config` in the project root.
 
 ### **Hardware Recommendations**
 - **RAM**: 8GB+ (16GB recommended for large datasets)
@@ -366,10 +412,11 @@ pip install -r requirements.txt
 All documentation is organized in the `docs/` directory. See **[docs/README.md](docs/README.md)** for the complete index.
 
 ### **Quick Links**
+- **📖 Configuration**: [docs/CONFIGURATION.md](docs/CONFIGURATION.md) - Complete configuration guide
 - **📖 Agent System**: [docs/AGENTS_README.md](docs/AGENTS_README.md) - Agent usage and API reference
 - **⚙️ Cache Control**: [docs/CACHE_CONTROL.md](docs/CACHE_CONTROL.md) - Configure caching behavior
 - **📊 Log Levels**: [docs/LOG_LEVEL_QUICK_REF.md](docs/LOG_LEVEL_QUICK_REF.md) - Configure logging output
-- **🔧 Caching Details**: [docs/CACHING_REFACTOR.md](docs/CACHING_REFACTOR.md) - Caching implementation details
+- **🔧 Model Selection**: [docs/MODEL_CONFIGURATION.md](docs/MODEL_CONFIGURATION.md) - Model configuration guide
 
 ### **Getting Started**
 1. **Clone Repository**: `git clone <repository-url>`

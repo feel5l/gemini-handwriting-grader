@@ -1,19 +1,24 @@
 """Centralized model configuration for all agents."""
 
-import os
+try:
+    # Try relative import first (when used as a package)
+    from .config_loader import config
+except ImportError:
+    # Fall back to absolute import (when used standalone)
+    from config_loader import config
 
 
 class ModelConfig:
     """Configuration for AI models used across agents."""
     
-    # Default models for each agent type
-    OCR_MODEL = os.getenv("MODEL_OCR", "gemini-2.5-flash")
-    GRADING_MODEL = os.getenv("MODEL_GRADING", "gemini-3-flash-preview")
-    MODERATION_MODEL = os.getenv("MODEL_MODERATION", "gemini-3-pro-preview")
-    MARKING_SCHEME_MODEL = os.getenv("MODEL_MARKING_SCHEME", "gemini-3-flash-preview")
-    ANNOTATION_MODEL = os.getenv("MODEL_ANNOTATION", "gemini-3-flash-preview")
-    ANALYTICS_MODEL = os.getenv("MODEL_ANALYTICS", "gemini-3-flash-preview")
-    ANALYTICS_IMAGE_MODEL = os.getenv("MODEL_ANALYTICS_IMAGE", "gemini-3-pro-image-preview")
+    # Load models from config.yaml
+    OCR_MODEL = config.get_model("ocr")
+    GRADING_MODEL = config.get_model("grading")
+    MODERATION_MODEL = config.get_model("moderation")
+    MARKING_SCHEME_MODEL = config.get_model("marking_scheme")
+    ANNOTATION_MODEL = config.get_model("annotation")
+    ANALYTICS_MODEL = config.get_model("analytics")
+    ANALYTICS_IMAGE_MODEL = config.get_model("analytics_image")
     
     @classmethod
     def get_model(cls, agent_type: str) -> str:
@@ -26,13 +31,4 @@ class ModelConfig:
         Returns:
             Model name string
         """
-        model_map = {
-            "ocr": cls.OCR_MODEL,
-            "grading": cls.GRADING_MODEL,
-            "moderation": cls.MODERATION_MODEL,
-            "marking_scheme": cls.MARKING_SCHEME_MODEL,
-            "annotation": cls.ANNOTATION_MODEL,
-            "analytics": cls.ANALYTICS_MODEL,
-            "analytics_image": cls.ANALYTICS_IMAGE_MODEL,
-        }
-        return model_map.get(agent_type.lower(), cls.GRADING_MODEL)
+        return config.get_model(agent_type)

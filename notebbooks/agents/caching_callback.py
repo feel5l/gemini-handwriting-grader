@@ -17,6 +17,7 @@ from google.genai import types
 
 import grading_utils
 from .model_config import ModelConfig
+from .config_loader import config
 
 logger = logging.getLogger(__name__)
 
@@ -31,20 +32,13 @@ def is_cache_enabled(agent_type: str) -> bool:
     Returns:
         True if caching is enabled, False otherwise
     """
-    # Check master cache control
-    master_enabled = os.getenv("AGENT_CACHE_ENABLED", "TRUE").upper() == "TRUE"
-    if not master_enabled:
-        logger.debug(f"[{agent_type}] Caching disabled by AGENT_CACHE_ENABLED=FALSE")
-        return False
+    # Use config.yaml for cache settings
+    enabled = config.is_agent_cache_enabled(agent_type)
     
-    # Check individual agent cache control
-    env_var = f"AGENT_CACHE_{agent_type.upper()}"
-    agent_enabled = os.getenv(env_var, "TRUE").upper() == "TRUE"
+    if not enabled:
+        logger.debug(f"[{agent_type}] Caching disabled in config.yaml")
     
-    if not agent_enabled:
-        logger.debug(f"[{agent_type}] Caching disabled by {env_var}=FALSE")
-    
-    return agent_enabled
+    return enabled
 
 
 def create_ocr_cache_callbacks(
