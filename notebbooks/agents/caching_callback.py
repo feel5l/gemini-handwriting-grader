@@ -16,6 +16,7 @@ from google.adk.models import LlmRequest, LlmResponse
 from google.genai import types
 
 import grading_utils
+from .model_config import ModelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ def is_cache_enabled(agent_type: str) -> bool:
 def create_ocr_cache_callbacks(
     prompt: str,
     image_data: bytes,
-    model: str = "gemini-3-flash-preview",
+    model: str = None,
     cache_dir: str = "../cache"
 ):
     """
@@ -62,12 +63,15 @@ def create_ocr_cache_callbacks(
     Args:
         prompt: OCR prompt text
         image_data: Image bytes
-        model: Model name
+        model: Model name (defaults to ModelConfig.OCR_MODEL)
         cache_dir: Cache directory
         
     Returns:
         Tuple of (before_callback, after_callback)
     """
+    if model is None:
+        model = ModelConfig.OCR_MODEL
+    
     # Check if caching is enabled for OCR
     cache_enabled = is_cache_enabled("ocr")
     
@@ -162,7 +166,7 @@ def create_grading_cache_callbacks(
     submitted_answer: str,
     marking_scheme_text: str,
     total_marks: float,
-    model: str = "gemini-3-flash-preview",
+    model: str = None,
     cache_dir: str = "../cache"
 ):
     """
@@ -173,12 +177,15 @@ def create_grading_cache_callbacks(
         submitted_answer: Student's answer
         marking_scheme_text: Marking scheme
         total_marks: Total marks available
-        model: Model name
+        model: Model name (defaults to ModelConfig.GRADING_MODEL)
         cache_dir: Cache directory
         
     Returns:
         Tuple of (before_callback, after_callback)
     """
+    if model is None:
+        model = ModelConfig.GRADING_MODEL
+    
     # Check if caching is enabled for grading
     cache_enabled = is_cache_enabled("grading")
     
@@ -274,7 +281,7 @@ def create_ocr_grading_cache_callbacks(
     marking_scheme_text: str,
     total_marks: float,
     image_data: bytes,
-    model: str = "gemini-3-flash-preview",
+    model: str = None,
     cache_dir: str = "../cache"
 ):
     """
@@ -285,12 +292,15 @@ def create_ocr_grading_cache_callbacks(
         marking_scheme_text: Marking scheme
         total_marks: Total marks available
         image_data: Image bytes
-        model: Model name
+        model: Model name (defaults to ModelConfig.GRADING_MODEL)
         cache_dir: Cache directory
         
     Returns:
         Tuple of (before_callback, after_callback)
     """
+    if model is None:
+        model = ModelConfig.GRADING_MODEL
+    
     # Check if caching is enabled for grading (OCR+grading uses grading cache control)
     cache_enabled = is_cache_enabled("grading")
     
@@ -376,7 +386,7 @@ def create_moderation_cache_callbacks(
     marking_scheme_text: str,
     total_marks: float,
     entries: list,
-    model: str = "gemini-3-pro-preview",
+    model: str = None,
     cache_dir: str = "../cache"
 ):
     """
@@ -387,13 +397,16 @@ def create_moderation_cache_callbacks(
         marking_scheme_text: Marking scheme
         total_marks: Total marks available
         entries: List of student entries
-        model: Model name
+        model: Model name (defaults to ModelConfig.MODERATION_MODEL)
         cache_dir: Cache directory
         
     Returns:
         Tuple of (before_callback, after_callback)
     """
     import json
+    
+    if model is None:
+        model = ModelConfig.MODERATION_MODEL
     
     # Check if caching is enabled for moderation
     cache_enabled = is_cache_enabled("moderation")
@@ -477,7 +490,7 @@ def create_moderation_cache_callbacks(
 
 def create_marking_scheme_cache_callbacks(
     markdown_content: str,
-    model: str = "gemini-3-flash-preview",
+    model: str = None,
     cache_dir: str = "../cache"
 ):
     """
@@ -485,13 +498,16 @@ def create_marking_scheme_cache_callbacks(
     
     Args:
         markdown_content: Markdown content to extract from
-        model: Model name
+        model: Model name (defaults to ModelConfig.MARKING_SCHEME_MODEL)
         cache_dir: Cache directory
         
     Returns:
         Tuple of (before_callback, after_callback)
     """
     import json
+    
+    if model is None:
+        model = ModelConfig.MARKING_SCHEME_MODEL
     
     # Check if caching is enabled for marking scheme
     cache_enabled = is_cache_enabled("marking_scheme")
@@ -611,7 +627,7 @@ def create_marking_scheme_cache_callbacks(
 
 def create_annotation_cache_callbacks(
     image_data: bytes,
-    model: str = "gemini-3-flash-preview",
+    model: str = None,
     cache_dir: str = "../cache"
 ):
     """
@@ -619,13 +635,16 @@ def create_annotation_cache_callbacks(
     
     Args:
         image_data: Image bytes
-        model: Model name
+        model: Model name (defaults to ModelConfig.ANNOTATION_MODEL)
         cache_dir: Cache directory
         
     Returns:
         Tuple of (before_callback, after_callback)
     """
     import json
+    
+    if model is None:
+        model = ModelConfig.ANNOTATION_MODEL
     
     # Check if caching is enabled for annotation
     cache_enabled = is_cache_enabled("annotation")
@@ -703,7 +722,7 @@ def create_annotation_cache_callbacks(
 def create_analytics_cache_callbacks(
     cache_type: str,
     payload_data: Any,
-    model: str = "gemini-3-flash-preview",
+    model: str = None,
     cache_dir: str = "../cache"
 ):
     """
@@ -712,13 +731,16 @@ def create_analytics_cache_callbacks(
     Args:
         cache_type: Type of analytics operation (e.g., "performance_report", "class_overview_report")
         payload_data: Data to hash for cache key (dict or string)
-        model: Model name
+        model: Model name (defaults to ModelConfig.ANALYTICS_MODEL)
         cache_dir: Cache directory
         
     Returns:
         Tuple of (before_callback, after_callback)
     """
     import json
+    
+    if model is None:
+        model = ModelConfig.ANALYTICS_MODEL
     
     # Check if caching is enabled for analytics
     cache_enabled = is_cache_enabled("analytics")
@@ -808,7 +830,7 @@ def create_analytics_cache_callbacks(
 
 def create_marking_scheme_verification_cache_callbacks(
     questions_data: list,
-    model: str = "gemini-3-flash-preview",
+    model: str = None,
     cache_dir: str = "../cache"
 ):
     """
@@ -819,13 +841,16 @@ def create_marking_scheme_verification_cache_callbacks(
     
     Args:
         questions_data: List of question dictionaries to verify
-        model: Model name
+        model: Model name (defaults to ModelConfig.MARKING_SCHEME_MODEL)
         cache_dir: Cache directory
         
     Returns:
         Tuple of (before_callback, after_callback)
     """
     import json
+    
+    if model is None:
+        model = ModelConfig.MARKING_SCHEME_MODEL
     
     # Check if caching is enabled for marking scheme
     cache_enabled = is_cache_enabled("marking_scheme")
@@ -926,7 +951,7 @@ def create_marking_scheme_verification_cache_callbacks(
 
 def create_verification_searcher_cache_callbacks(
     questions_data: list,
-    model: str = "gemini-3-flash-preview",
+    model: str = None,
     cache_dir: str = "../cache"
 ):
     """
@@ -937,13 +962,16 @@ def create_verification_searcher_cache_callbacks(
     
     Args:
         questions_data: List of question dictionaries to verify
-        model: Model name
+        model: Model name (defaults to ModelConfig.MARKING_SCHEME_MODEL)
         cache_dir: Cache directory
         
     Returns:
         Tuple of (before_callback, after_callback)
     """
     import json
+    
+    if model is None:
+        model = ModelConfig.MARKING_SCHEME_MODEL
     
     # Check if caching is enabled for marking scheme
     cache_enabled = is_cache_enabled("marking_scheme")

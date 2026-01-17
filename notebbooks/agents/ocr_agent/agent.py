@@ -10,6 +10,7 @@ from google.adk.sessions import InMemorySessionService
 
 from ..common import setup_agent_environment
 from ..caching_callback import create_ocr_cache_callbacks
+from ..model_config import ModelConfig
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
@@ -52,12 +53,12 @@ async def perform_ocr_with_ai(
     before_callback, after_callback = create_ocr_cache_callbacks(
         prompt=prompt,
         image_data=image_data,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.OCR_MODEL
     )
     
     # Create OCR agent with caching callbacks
     ocr_agent_cached = Agent(
-        model="gemini-3-flash-preview",
+        model=ModelConfig.OCR_MODEL,
         name="ocr_extractor",
         description="Agent for extracting text from images.",
         instruction=(

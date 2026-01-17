@@ -10,6 +10,7 @@ from ..caching_callback import (
     create_grading_cache_callbacks,
     create_ocr_cache_callbacks
 )
+from ..model_config import ModelConfig
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
@@ -60,12 +61,12 @@ async def grade_answer_with_ai(
         submitted_answer=submitted_answer,
         marking_scheme_text=marking_scheme_text,
         total_marks=total_marks,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.GRADING_MODEL
     )
     
     # Create grading agent with caching callbacks
     grading_agent_cached = Agent(
-        model="gemini-3-flash-preview",
+        model=ModelConfig.GRADING_MODEL,
         name="grading_expert",
         description="Expert grader for evaluating student answers.",
         instruction=(
@@ -196,7 +197,7 @@ please focus on extracting the text in the image)."""
     before_callback_ocr, after_callback_ocr = create_ocr_cache_callbacks(
         prompt=ocr_prompt,
         image_data=image_data,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.OCR_MODEL
     )
     logger.debug("OCR caching callbacks created")
     
@@ -211,14 +212,14 @@ please focus on extracting the text in the image)."""
         submitted_answer=f"[OCR_OUTPUT_{image_hash[:16]}]",  # Unique placeholder
         marking_scheme_text=marking_scheme_text,
         total_marks=total_marks,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.GRADING_MODEL
     )
     logger.debug("Grading caching callbacks created")
     
     logger.debug("Creating OCR agent instance...")
     # Create OCR agent with caching
     ocr_agent_instance = Agent(
-        model="gemini-2.5-flash",
+        model=ModelConfig.OCR_MODEL,
         name="ocr_extractor",
         description="Agent for extracting text from images.",
         instruction=(
@@ -240,7 +241,7 @@ please focus on extracting the text in the image)."""
     logger.debug("Creating grading agent instance...")
     # Create grading agent with caching
     grading_agent_instance = Agent(
-        model="gemini-3-flash-preview",
+        model=ModelConfig.GRADING_MODEL,
         name="grading_expert",
         description="Expert grader for evaluating student answers.",
         instruction=(

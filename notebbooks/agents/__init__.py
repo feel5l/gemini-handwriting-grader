@@ -7,6 +7,7 @@ from . import moderation_agent
 from . import annotation_agent
 from . import marking_scheme_agent
 from . import analytics_agent
+from .model_config import ModelConfig
 
 __all__ = [
     'common',
@@ -16,4 +17,5 @@ __all__ = [
     'annotation_agent',
     'marking_scheme_agent',
     'analytics_agent',
+    'ModelConfig',
 ]

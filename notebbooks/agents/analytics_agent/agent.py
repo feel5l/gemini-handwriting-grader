@@ -13,6 +13,7 @@ from google.adk.agents import SequentialAgent
 from pydantic import BaseModel, Field
 
 from ..common import setup_agent_environment, run_agent_with_retry
+from ..model_config import ModelConfig
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
@@ -73,12 +74,12 @@ async def generate_student_report_with_ai(
     before_callback, after_callback = create_analytics_cache_callbacks(
         cache_type="performance_report",
         payload_data=payload_data,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.ANALYTICS_MODEL
     )
     
     # Create student performance agent with caching callbacks
     student_performance_agent_cached = Agent(
-        model="gemini-3-flash-preview",
+        model=ModelConfig.ANALYTICS_MODEL,
         name="student_performance_generator",
         description="Agent for generating personalized student performance reports.",
         instruction=STUDENT_PERFORMANCE_INSTRUCTION,
@@ -179,7 +180,7 @@ def generate_infographic_tool(report_text: str) -> str:
         Visual style: Clean, modern, educational. Include charts or icons representing strengths/weaknesses."""
         
         response = client.models.generate_content(
-            model='gemini-3-pro-image-preview',
+            model=ModelConfig.ANALYTICS_IMAGE_MODEL,
             contents=[prompt],
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"],
@@ -216,7 +217,7 @@ def generate_infographic_tool(report_text: str) -> str:
 
 
 class_overview_text_generator = Agent(
-    model="gemini-3-flash-preview",
+    model=ModelConfig.ANALYTICS_MODEL,
     name="class_overview_text_generator",
     description="Agent for generating class-level performance overview text.",
     instruction="""You are summarizing overall class performance from individual reports.
@@ -236,7 +237,7 @@ Focus on patterns; do not restate student names or IDs.""",
 
 
 class_overview_infograph_generator = Agent(
-    model="gemini-3-flash-preview",
+    model=ModelConfig.ANALYTICS_MODEL,
     name="class_overview_infograph_generator",
     description="Orchestrator for creating a class performance infographic.",
     instruction="""You are an expert coordinator.
@@ -289,7 +290,7 @@ async def generate_class_overview_with_ai(
     before_callback_text, after_callback_text = create_analytics_cache_callbacks(
         cache_type="class_overview_text",
         payload_data=text_payload,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.ANALYTICS_MODEL
     )
     
     # Infograph generator caching
@@ -301,12 +302,12 @@ async def generate_class_overview_with_ai(
     before_callback_infograph, after_callback_infograph = create_analytics_cache_callbacks(
         cache_type="class_overview_infograph",
         payload_data=infograph_payload,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.ANALYTICS_MODEL
     )
     
     # Create text generator with caching
     class_overview_text_generator_cached = Agent(
-        model="gemini-3-flash-preview",
+        model=ModelConfig.ANALYTICS_MODEL,
         name="class_overview_text_generator",
         description="Agent for generating class-level performance overview text.",
         instruction=class_overview_text_generator.instruction,
@@ -322,7 +323,7 @@ async def generate_class_overview_with_ai(
     
     # Create infograph generator with caching
     class_overview_infograph_generator_cached = Agent(
-        model="gemini-3-flash-preview",
+        model=ModelConfig.ANALYTICS_MODEL,
         name="class_overview_infograph_generator",
         description="Orchestrator for creating a class performance infographic.",
         instruction=class_overview_infograph_generator.instruction,
@@ -442,7 +443,7 @@ def generate_question_infographic_tool(analysis_text: str) -> str:
         - Style: Clean, focused, single-topic educational card."""
         
         response = client.models.generate_content(
-            model='gemini-3-pro-image-preview',
+            model=ModelConfig.ANALYTICS_IMAGE_MODEL,
             contents=[prompt],
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"],
@@ -479,7 +480,7 @@ def generate_question_infographic_tool(analysis_text: str) -> str:
 
 
 question_insight_text_generator = Agent(
-    model="gemini-3-flash-preview",
+    model=ModelConfig.ANALYTICS_MODEL,
     name="question_insight_text_generator",
     description="Agent for analyzing a single question's performance data.",
     instruction="""You are an expert educational analyst.
@@ -502,7 +503,7 @@ Write a concise analysis (approx 150 words) specifically for this question:
 
 
 question_insight_infograph_generator = Agent(
-    model="gemini-3-flash-preview",
+    model=ModelConfig.ANALYTICS_MODEL,
     name="question_insight_infograph_generator",
     description="Orchestrator for creating question analysis infographic.",
     instruction="""You are an expert coordinator.
@@ -549,7 +550,7 @@ async def generate_question_insights_with_ai(
     before_callback_text, after_callback_text = create_analytics_cache_callbacks(
         cache_type="question_insights_text",
         payload_data=text_payload,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.ANALYTICS_MODEL
     )
     
     # Infograph generator caching
@@ -560,12 +561,12 @@ async def generate_question_insights_with_ai(
     before_callback_infograph, after_callback_infograph = create_analytics_cache_callbacks(
         cache_type="question_insights_infograph",
         payload_data=infograph_payload,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.ANALYTICS_MODEL
     )
     
     # Create text generator with caching
     question_insight_text_generator_cached = Agent(
-        model="gemini-3-flash-preview",
+        model=ModelConfig.ANALYTICS_MODEL,
         name="question_insight_text_generator",
         description="Agent for analyzing a single question's performance data.",
         instruction=question_insight_text_generator.instruction,
@@ -580,7 +581,7 @@ async def generate_question_insights_with_ai(
     
     # Create infograph generator with caching
     question_insight_infograph_generator_cached = Agent(
-        model="gemini-3-flash-preview",
+        model=ModelConfig.ANALYTICS_MODEL,
         name="question_insight_infograph_generator",
         description="Orchestrator for creating question analysis infographic.",
         instruction=question_insight_infograph_generator.instruction,

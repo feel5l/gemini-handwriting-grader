@@ -6,6 +6,7 @@ from google.adk.agents.llm_agent import Agent
 from pydantic import BaseModel, Field
 
 from ..common import setup_agent_environment, run_agent_with_retry
+from ..model_config import ModelConfig
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
@@ -88,12 +89,12 @@ async def extract_annotations_with_ai(
     # Create caching callbacks
     before_callback, after_callback = create_annotation_cache_callbacks(
         image_data=image_data,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.ANNOTATION_MODEL
     )
     
     # Create annotation agent with caching callbacks
     annotation_agent_cached = Agent(
-        model="gemini-3-flash-preview",
+        model=ModelConfig.ANNOTATION_MODEL,
         name="annotation_extractor",
         description="Agent for extracting bounding boxes from exam images.",
         instruction=ANNOTATION_INSTRUCTION,

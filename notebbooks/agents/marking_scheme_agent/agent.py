@@ -12,6 +12,7 @@ from ..caching_callback import (
     create_marking_scheme_verification_cache_callbacks,
     create_verification_searcher_cache_callbacks
 )
+from ..model_config import ModelConfig
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
@@ -158,12 +159,12 @@ async def extract_marking_scheme_with_ai(
     # Create caching callbacks
     before_callback, after_callback = create_marking_scheme_cache_callbacks(
         markdown_content=markdown_content,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.MARKING_SCHEME_MODEL
     )
     
     # Create marking scheme agent with caching callbacks
     marking_scheme_agent_cached = Agent(
-        model="gemini-3-flash-preview",
+        model=ModelConfig.MARKING_SCHEME_MODEL,
         name="marking_scheme_extractor",
         description="Agent for extracting structured marking schemes from documents.",
         instruction=MARKING_SCHEME_INSTRUCTION,
@@ -235,18 +236,18 @@ async def verify_marking_scheme_with_ai(
     # Create caching callbacks for the searcher agent (Google Search + citations)
     before_callback_searcher, after_callback_searcher = create_verification_searcher_cache_callbacks(
         questions_data=questions_data,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.MARKING_SCHEME_MODEL
     )
     
     # Create caching callbacks for the formatter agent (final output)
     before_callback_formatter, after_callback_formatter = create_marking_scheme_verification_cache_callbacks(
         questions_data=questions_data,
-        model="gemini-3-flash-preview"
+        model=ModelConfig.MARKING_SCHEME_MODEL
     )
     
     # Create searcher agent with caching + citation callbacks
     verifier_searcher = Agent(
-        model="gemini-3-flash-preview",
+        model=ModelConfig.MARKING_SCHEME_MODEL,
         name="marking_scheme_verifier_searcher",
         description="Agent that verifies marking schemes using Google Search.",
         instruction=VERIFICATION_SEARCHER_INSTRUCTION,
@@ -262,7 +263,7 @@ async def verify_marking_scheme_with_ai(
     
     # Create formatter agent with caching callbacks
     verifier_formatter = Agent(
-        model="gemini-3-flash-preview",
+        model=ModelConfig.MARKING_SCHEME_MODEL,
         name="marking_scheme_verifier_formatter",
         description="Agent that formats verification results into structured JSON.",
         instruction=VERIFICATION_FORMATTER_INSTRUCTION,

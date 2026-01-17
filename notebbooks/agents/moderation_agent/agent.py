@@ -7,6 +7,7 @@ from google.adk.agents.llm_agent import Agent
 from pydantic import BaseModel, Field
 
 from ..common import setup_agent_environment, run_agent_with_retry
+from ..model_config import ModelConfig
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
@@ -61,13 +62,13 @@ async def moderate_grades_with_ai(
         marking_scheme_text=marking_scheme_text,
         total_marks=total_marks,
         entries=entries,
-        model="gemini-3-pro-preview"
+        model=ModelConfig.MODERATION_MODEL
     )
     
     # Create moderation agent with caching callbacks
     logger.debug("Creating moderation agent with caching...")
     moderation_agent_cached = Agent(
-        model="gemini-3-pro-preview",
+        model=ModelConfig.MODERATION_MODEL,
         name="grading_moderator",
         description="Agent to moderate grading results for consistency.",
         instruction=(
