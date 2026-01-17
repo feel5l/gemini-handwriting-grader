@@ -7,12 +7,10 @@ Complete guide for configuring the AI Grading System.
 ### 1. Setup Configuration Files
 
 ```bash
-# Run setup script
+# Run setup script (creates .env from template if needed)
 python3 setup_config.py
 
-# Or manually copy templates
-cp .env.template .env
-cp config.yaml.template config.yaml
+# Note: config.yaml already exists in the repository
 ```
 
 ### 2. Add API Key
@@ -25,7 +23,22 @@ GOOGLE_GENAI_API_KEY=your-api-key-here
 
 Get your API key from: https://aistudio.google.com/apikey
 
-### 3. Verify Configuration
+### 3. (Optional) Customize Settings
+
+Edit `config.yaml` to customize logging, caching, or models:
+
+```yaml
+logging:
+  level: INFO  # Change to DEBUG for more details
+
+caching:
+  enabled: true  # Set to false to disable all caching
+
+models:
+  grading: gemini-3-pro-preview  # Upgrade to pro model
+```
+
+### 4. Verify Configuration
 
 ```bash
 python3 test_config.py
@@ -258,43 +271,64 @@ python3 setup_config.py  # Creates missing files
 
 ## Migration from Old System
 
-If you're upgrading from the old environment variable system:
+If you're upgrading from an older version that used environment variables for all configuration:
 
-### Old System (.env only)
+### Old System (.env with many variables)
 ```env
 GOOGLE_GENAI_API_KEY=key
 GOOGLE_GENAI_USE_VERTEXAI=TRUE
 AGENT_LOG_LEVEL=INFO
 AGENT_CACHE_ENABLED=TRUE
+AGENT_CACHE_OCR=TRUE
+AGENT_CACHE_GRADING=TRUE
+# ... many more lines
 MODEL_OCR=gemini-2.5-flash
-# ... 50+ more lines
+MODEL_GRADING=gemini-3-flash-preview
+# ... etc
 ```
 
-### New System
+### New System (Separated)
 
-**`.env`** (4 lines):
+**`.env`** (Only API key):
 ```env
 GOOGLE_GENAI_API_KEY=key
 ```
 
-**`config.yaml`** (all other settings):
+**`config.yaml`** (All other settings):
 ```yaml
 vertex_ai:
   use_vertexai: true
+
 logging:
   level: INFO
+
 caching:
   enabled: true
+  agents:
+    ocr: true
+    grading: true
+    moderation: true
+    marking_scheme: true
+    annotation: true
+    analytics: true
+
 models:
   ocr: gemini-2.5-flash
+  grading: gemini-3-flash-preview
+  moderation: gemini-3-pro-preview
+  marking_scheme: gemini-3-flash-preview
+  annotation: gemini-3-flash-preview
+  analytics: gemini-3-flash-preview
+  analytics_image: gemini-3-pro-image-preview
 ```
 
 ### Migration Steps
 
 1. Backup current `.env`: `cp .env .env.backup`
-2. Create `config.yaml`: `cp config.yaml.template config.yaml`
-3. Update `.env` to only contain API key
+2. Verify `config.yaml` exists with all settings
+3. Update `.env` to only contain `GOOGLE_GENAI_API_KEY`
 4. Verify: `python3 test_config.py`
+5. Remove old environment variables from `.env`
 
 ## Related Documentation
 

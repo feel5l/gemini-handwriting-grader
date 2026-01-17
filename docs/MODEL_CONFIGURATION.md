@@ -4,50 +4,49 @@ This document explains how to configure AI models used across the grading system
 
 ## Overview
 
-All AI models are now centrally configured through environment variables and the `ModelConfig` class. This makes it easy to:
+All AI models are centrally configured through `config.yaml` and the `ModelConfig` class. This makes it easy to:
 - Switch models for testing or cost optimization
 - Use different models for different agent types
 - Update models without changing code
 
 ## Configuration Location
 
-Models are configured in two places:
-
-1. **Environment Variables** (`.env` file) - Runtime configuration
-2. **ModelConfig Class** (`notebbooks/agents/model_config.py`) - Default values and access
+Models are configured in `config.yaml` file in the project root.
 
 ## Available Model Settings
 
-### Environment Variables
+### Configuration in config.yaml
 
-Add these to your `.env` file to override default models:
+Edit `config.yaml` to configure models:
 
-```bash
-# OCR Agent - Text extraction from images
-MODEL_OCR=gemini-2.5-flash
-
-# Grading Agent - Evaluating student answers
-MODEL_GRADING=gemini-3-flash-preview
-
-# Moderation Agent - Ensuring grading consistency
-MODEL_MODERATION=gemini-3-pro-preview
-
-# Marking Scheme Agent - Extracting and verifying marking schemes
-MODEL_MARKING_SCHEME=gemini-3-flash-preview
-
-# Annotation Agent - Extracting bounding boxes from images
-MODEL_ANNOTATION=gemini-3-flash-preview
-
-# Analytics Agent - Generating reports and insights
-MODEL_ANALYTICS=gemini-3-flash-preview
-
-# Analytics Image Agent - Generating infographic images
-MODEL_ANALYTICS_IMAGE=gemini-3-pro-image-preview
+```yaml
+# Model Configuration
+models:
+  # OCR Agent - Text extraction from images
+  ocr: gemini-2.5-flash
+  
+  # Grading Agent - Evaluating student answers
+  grading: gemini-3-flash-preview
+  
+  # Moderation Agent - Ensuring grading consistency
+  moderation: gemini-3-pro-preview
+  
+  # Marking Scheme Agent - Extracting and verifying marking schemes
+  marking_scheme: gemini-3-flash-preview
+  
+  # Annotation Agent - Extracting bounding boxes from images
+  annotation: gemini-3-flash-preview
+  
+  # Analytics Agent - Generating reports and insights
+  analytics: gemini-3-flash-preview
+  
+  # Analytics Image Agent - Generating infographic images
+  analytics_image: gemini-3-pro-image-preview
 ```
 
 ### Default Models
 
-If environment variables are not set, these defaults are used:
+These are the default models configured in `config.yaml`:
 
 | Agent Type | Default Model | Purpose |
 |------------|---------------|---------|
@@ -63,30 +62,33 @@ If environment variables are not set, these defaults are used:
 
 ### Change All Models to a Specific Version
 
-```bash
-# In .env file
-MODEL_OCR=gemini-2.0-flash
-MODEL_GRADING=gemini-2.0-flash
-MODEL_MODERATION=gemini-2.0-pro
-MODEL_MARKING_SCHEME=gemini-2.0-flash
-MODEL_ANNOTATION=gemini-2.0-flash
-MODEL_ANALYTICS=gemini-2.0-flash
-MODEL_ANALYTICS_IMAGE=gemini-2.0-pro-image
+```yaml
+# In config.yaml
+models:
+  ocr: gemini-2.0-flash
+  grading: gemini-2.0-flash
+  moderation: gemini-2.0-pro
+  marking_scheme: gemini-2.0-flash
+  annotation: gemini-2.0-flash
+  analytics: gemini-2.0-flash
+  analytics_image: gemini-2.0-pro-image
 ```
 
 ### Use Faster Models for Testing
 
-```bash
-# In .env file - use flash models for speed
-MODEL_MODERATION=gemini-3-flash-preview  # Instead of pro
+```yaml
+# In config.yaml - use flash models for speed
+models:
+  moderation: gemini-3-flash-preview  # Instead of pro
 ```
 
 ### Use Higher Quality Models for Production
 
-```bash
-# In .env file - use pro models for quality
-MODEL_GRADING=gemini-3-pro-preview
-MODEL_ANALYTICS=gemini-3-pro-preview
+```yaml
+# In config.yaml - use pro models for quality
+models:
+  grading: gemini-3-pro-preview
+  analytics: gemini-3-pro-preview
 ```
 
 ## Programmatic Access

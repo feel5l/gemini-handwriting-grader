@@ -21,13 +21,15 @@ def main():
     
     if config_file.exists():
         print("✓ config.yaml already exists")
+    elif config_template.exists():
+        shutil.copy(config_template, config_file)
+        print("✓ config.yaml created from template")
     else:
-        if config_template.exists():
-            shutil.copy(config_template, config_file)
-            print("✓ config.yaml created from template")
-        else:
-            print("✗ Error: config.yaml.template not found")
-            return 1
+        # If neither exists, this is likely a fresh clone
+        # config.yaml should be in the repo, so this is an error
+        print("✗ Error: Neither config.yaml nor config.yaml.template found")
+        print("  This may indicate a corrupted repository")
+        return 1
     
     # Setup .env
     env_file = project_root / ".env"

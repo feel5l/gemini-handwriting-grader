@@ -154,27 +154,30 @@ The `common.py` module provides shared utilities:
 ### Cache Control
 Control caching behavior for each agent type individually:
 
-```bash
-# In .env file
-AGENT_CACHE_ENABLED=TRUE          # Master control for all agents
-AGENT_CACHE_OCR=TRUE              # Control OCR caching
-AGENT_CACHE_GRADING=TRUE          # Control grading caching
-AGENT_CACHE_MODERATION=TRUE       # Control moderation caching
-AGENT_CACHE_MARKING_SCHEME=TRUE   # Control marking scheme caching
-AGENT_CACHE_ANNOTATION=TRUE       # Control annotation caching
-AGENT_CACHE_ANALYTICS=TRUE        # Control analytics caching
+```yaml
+# In config.yaml
+caching:
+  enabled: true  # Master control for all agents
+  agents:
+    ocr: true              # Control OCR caching
+    grading: true          # Control grading caching
+    moderation: true       # Control moderation caching
+    marking_scheme: true   # Control marking scheme caching
+    annotation: true       # Control annotation caching
+    analytics: true        # Control analytics caching
 ```
 
-Set to `FALSE` to disable caching for specific agents - useful for debugging, testing, or forcing fresh results.
+Set to `false` to disable caching for specific agents - useful for debugging, testing, or forcing fresh results.
 
 **Full guide:** `CACHE_CONTROL.md`
 
 ### Log Level Configuration
-Control logging verbosity with the `AGENT_LOG_LEVEL` environment variable:
+Control logging verbosity in `config.yaml`:
 
-```bash
-# In .env file
-AGENT_LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+```yaml
+# In config.yaml
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 ```
 
 **Quick Reference:**

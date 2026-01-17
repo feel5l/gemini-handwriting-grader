@@ -2,76 +2,92 @@
 
 ## Quick Start
 
-Control caching for each agent type using environment variables in your `.env` file:
+Control caching for each agent type using `config.yaml`:
 
-```bash
-# Master control - disables ALL agent caching when FALSE
-AGENT_CACHE_ENABLED=TRUE
-
-# Individual agent cache controls (only apply when AGENT_CACHE_ENABLED=TRUE)
-AGENT_CACHE_OCR=TRUE
-AGENT_CACHE_GRADING=TRUE
-AGENT_CACHE_MODERATION=TRUE
-AGENT_CACHE_MARKING_SCHEME=TRUE
-AGENT_CACHE_ANNOTATION=TRUE
-AGENT_CACHE_ANALYTICS=TRUE
+```yaml
+# Master control - disables ALL agent caching when false
+caching:
+  enabled: true
+  
+  # Individual agent cache controls (only apply when enabled=true)
+  agents:
+    ocr: true
+    grading: true
+    moderation: true
+    marking_scheme: true
+    annotation: true
+    analytics: true
 ```
 
-## Environment Variables
+## Configuration Options
 
-| Variable | Default | Controls |
-|----------|---------|----------|
-| `AGENT_CACHE_ENABLED` | `TRUE` | Master control for all agents |
-| `AGENT_CACHE_OCR` | `TRUE` | OCR text extraction (`perform_ocr_with_ai`) |
-| `AGENT_CACHE_GRADING` | `TRUE` | Answer grading (`grade_answer_with_ai`, `grade_answer_with_ocr_and_ai`) |
-| `AGENT_CACHE_MODERATION` | `TRUE` | Grade moderation (`moderate_grades_with_ai`) |
-| `AGENT_CACHE_MARKING_SCHEME` | `TRUE` | Marking scheme extraction/verification |
-| `AGENT_CACHE_ANNOTATION` | `TRUE` | Bounding box extraction (`extract_annotations_with_ai`) |
-| `AGENT_CACHE_ANALYTICS` | `TRUE` | Performance reports and insights |
+| Setting | Default | Controls |
+|---------|---------|----------|
+| `caching.enabled` | `true` | Master control for all agents |
+| `caching.agents.ocr` | `true` | OCR text extraction (`perform_ocr_with_ai`) |
+| `caching.agents.grading` | `true` | Answer grading (`grade_answer_with_ai`, `grade_answer_with_ocr_and_ai`) |
+| `caching.agents.moderation` | `true` | Grade moderation (`moderate_grades_with_ai`) |
+| `caching.agents.marking_scheme` | `true` | Marking scheme extraction/verification |
+| `caching.agents.annotation` | `true` | Bounding box extraction (`extract_annotations_with_ai`) |
+| `caching.agents.analytics` | `true` | Performance reports and insights |
 
 ## Common Use Cases
 
 ### Disable All Caching
-```bash
-AGENT_CACHE_ENABLED=FALSE
+```yaml
+caching:
+  enabled: false
 ```
 All agents will bypass cache and make fresh LLM calls.
 
 ### Disable Only OCR Caching
-```bash
-AGENT_CACHE_ENABLED=TRUE
-AGENT_CACHE_OCR=FALSE
+```yaml
+caching:
+  enabled: true
+  agents:
+    ocr: false
 ```
 OCR will always make fresh calls, other agents use cache normally.
 
 ### Disable Grading and Moderation
-```bash
-AGENT_CACHE_ENABLED=TRUE
-AGENT_CACHE_GRADING=FALSE
-AGENT_CACHE_MODERATION=FALSE
+```yaml
+caching:
+  enabled: true
+  agents:
+    grading: false
+    moderation: false
 ```
 Useful for testing grading logic changes while keeping other caches active.
 
 ### Force Fresh Marking Scheme Extraction
-```bash
-AGENT_CACHE_ENABLED=TRUE
-AGENT_CACHE_MARKING_SCHEME=FALSE
+```yaml
+caching:
+  enabled: true
+  agents:
+    marking_scheme: false
 ```
 Useful when you've updated the marking scheme document and want to re-extract.
 
 ### Production Mode (Default)
-```bash
-AGENT_CACHE_ENABLED=TRUE
-# All individual controls default to TRUE
+```yaml
+caching:
+  enabled: true
+  agents:
+    ocr: true
+    grading: true
+    moderation: true
+    marking_scheme: true
+    annotation: true
+    analytics: true
 ```
 Maximum performance with full caching enabled.
 
 ## How It Works
 
-1. **Master Check**: When an agent creates caching callbacks, it first checks `AGENT_CACHE_ENABLED`
-2. **Individual Check**: If master is enabled, it checks the specific agent's cache variable
+1. **Master Check**: When an agent creates caching callbacks, it first checks `caching.enabled` in config.yaml
+2. **Individual Check**: If master is enabled, it checks the specific agent's cache setting
 3. **Bypass**: If either check fails, the callbacks return immediately without cache operations
-4. **Logging**: Cache status is logged at DEBUG level (set `AGENT_LOG_LEVEL=DEBUG` to see)
+4. **Logging**: Cache status is logged at DEBUG level (set `logging.level: DEBUG` in config.yaml to see)
 
 ### Cache Check Flow
 
@@ -82,13 +98,13 @@ Create Cache Callbacks
     ↓
 is_cache_enabled(agent_type)
     ↓
-Check AGENT_CACHE_ENABLED
-    ↓ (if TRUE)
-Check AGENT_CACHE_{TYPE}
+Check caching.enabled
+    ↓ (if true)
+Check caching.agents.{type}
     ↓
-Return TRUE/FALSE
+Return true/false
     ↓
-Callbacks skip cache ops if FALSE
+Callbacks skip cache ops if false
 ```
 
 ## Testing
@@ -108,12 +124,12 @@ Expected output shows:
 ## Troubleshooting
 
 ### Cache not being disabled?
-1. Check `.env` file exists in project root
-2. Verify variable names are spelled correctly (case-sensitive)
-3. Restart Python kernel/process after changing `.env`
-4. Set `AGENT_LOG_LEVEL=DEBUG` to see cache status messages:
+1. Check `config.yaml` file exists in project root
+2. Verify YAML syntax is correct (use spaces, not tabs)
+3. Restart Python kernel/process after changing config.yaml
+4. Set `logging.level: DEBUG` in config.yaml to see cache status messages:
    ```
-   [ocr_extractor] Caching disabled by AGENT_CACHE_OCR=FALSE
+   [ocr_extractor] Caching disabled by config.yaml
    ```
 
 ### Want to clear existing cache?
@@ -137,7 +153,7 @@ rm -rf cache/performance_report/
 ### Development
 - Disable caching for agents you're actively debugging
 - Keep other agents cached for faster iteration
-- Use `AGENT_LOG_LEVEL=DEBUG` to verify cache behavior
+- Use `logging.level: DEBUG` in config.yaml to verify cache behavior
 
 ### Testing
 - Disable specific agent caches to test changes
@@ -147,7 +163,7 @@ rm -rf cache/performance_report/
 ### Production
 - Enable all caching for maximum performance (default)
 - Only disable if you need to force fresh results
-- Monitor cache hit rates in logs with `AGENT_LOG_LEVEL=INFO`
+- Monitor cache hit rates in logs with `logging.level: INFO`
 
 ## Implementation Details
 

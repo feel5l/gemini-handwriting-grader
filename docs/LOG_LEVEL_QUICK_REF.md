@@ -2,16 +2,18 @@
 
 ## TL;DR
 
-```bash
-# In .env file
-AGENT_LOG_LEVEL=INFO  # Default, recommended for most use cases
+```yaml
+# In config.yaml file
+logging:
+  level: INFO  # Default, recommended for most use cases
 ```
 
 ## Quick Setup
 
-1. **Edit `.env` file** in project root:
-   ```bash
-   AGENT_LOG_LEVEL=INFO
+1. **Edit `config.yaml` file** in project root:
+   ```yaml
+   logging:
+     level: INFO
    ```
 
 2. **Restart your Python kernel/process**
@@ -30,26 +32,34 @@ AGENT_LOG_LEVEL=INFO  # Default, recommended for most use cases
 ## Common Scenarios
 
 ### 🔍 Debugging a Problem
-```bash
-AGENT_LOG_LEVEL=DEBUG
+```yaml
+# In config.yaml
+logging:
+  level: DEBUG
 ```
 See every operation, cache check, and event.
 
 ### ✅ Normal Operations
-```bash
-AGENT_LOG_LEVEL=INFO
+```yaml
+# In config.yaml
+logging:
+  level: INFO
 ```
 Balanced output showing important milestones.
 
 ### 🚀 Production/Batch Processing
-```bash
-AGENT_LOG_LEVEL=WARNING
+```yaml
+# In config.yaml
+logging:
+  level: WARNING
 ```
 Minimal output, only see issues.
 
 ### 🔥 Only Show Failures
-```bash
-AGENT_LOG_LEVEL=ERROR
+```yaml
+# In config.yaml
+logging:
+  level: ERROR
 ```
 Silent unless something breaks.
 
@@ -58,9 +68,6 @@ Silent unless something breaks.
 ```bash
 # Test different levels
 python notebbooks/agents/test_log_levels.py
-
-# Or with specific level
-AGENT_LOG_LEVEL=DEBUG python notebbooks/agents/test_log_levels.py
 ```
 
 ## Output Examples
@@ -95,13 +102,13 @@ AGENT_LOG_LEVEL=DEBUG python notebbooks/agents/test_log_levels.py
 ## Troubleshooting
 
 ### Not seeing logs?
-- Check `.env` file exists in project root
-- Verify `AGENT_LOG_LEVEL` is spelled correctly
+- Check `config.yaml` file exists in project root
+- Verify `logging.level` is set correctly
 - Restart Python kernel/process
-- Try `AGENT_LOG_LEVEL=DEBUG` to see everything
+- Try `logging.level: DEBUG` to see everything
 
 ### Too many logs?
-- Set `AGENT_LOG_LEVEL=WARNING` or `AGENT_LOG_LEVEL=ERROR`
+- Set `logging.level: WARNING` or `logging.level: ERROR`
 - Default `INFO` should be reasonable for most cases
 
 ### Want different levels per agent?
