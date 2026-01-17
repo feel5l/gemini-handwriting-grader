@@ -1,13 +1,11 @@
 """Annotation agent for extracting bounding boxes from exam images."""
 
-import hashlib
 from typing import List
 from google.genai import types
 from google.adk.agents.llm_agent import Agent
 from pydantic import BaseModel, Field
 
 from ..common import setup_agent_environment, run_agent_with_retry
-import grading_utils
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
@@ -80,7 +78,7 @@ async def extract_annotations_with_ai(
     max_retries: int = 3
 ) -> BoundingBoxResponse:
     """
-    Extract annotations using AI with manual caching.
+    Extract annotations using AI with ADK callback-based caching.
     
     Args:
         image_path: Path to the image file
@@ -97,21 +95,32 @@ async def extract_annotations_with_ai(
         logger.error(f"Failed to read image file {image_path}: {e}")
         return BoundingBoxResponse(boxes=[])
 
-    # Check cache
-    cache_key = None
-    try:
-        image_hash = hashlib.sha256(image_data).hexdigest()
-        cache_key = grading_utils.get_cache_key(
-            "annotation_extraction",
-            model="gemini-3-flash-preview",
-            image_hash=image_hash,
-        )
-        cached = grading_utils.get_from_cache(cache_key)
-        if cached is not None:
-            logger.info("Annotation extraction cache hit")
-            return BoundingBoxResponse(**cached)
-    except Exception as e:
-        logger.warning(f"Cache lookup failed: {e}")
+    # Import callback creator
+    from ..caching_callback import create_annotation_cache_callbacks
+    
+    # Create caching callbacks
+    before_callback, after_callback = create_annotation_cache_callbacks(
+        image_data=image_data,
+        model="gemini-3-flash-preview"
+    )
+    
+    # Create annotation agent with caching callbacks
+    annotation_agent_cached = Agent(
+        model="gemini-3-flash-preview",
+        name="annotation_extractor",
+        description="Agent for extracting bounding boxes from exam images.",
+        instruction=annotation_agent.instruction,  # Reuse the detailed instruction
+        output_schema=BoundingBoxResponse,
+        output_key="output",
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.0,
+            top_p=0.5,
+            max_output_tokens=65535,
+            response_mime_type="application/json",
+        ),
+        before_model_callback=before_callback,
+        after_model_callback=after_callback
+    )
 
     try:
         content = types.Content(
@@ -128,7 +137,7 @@ async def extract_annotations_with_ai(
         )
 
         result = await run_agent_with_retry(
-            agent=annotation_agent,
+            agent=annotation_agent_cached,
             user_content=content,
             app_name="annotation_extractor",
             output_type=BoundingBoxResponse,
@@ -139,10 +148,6 @@ async def extract_annotations_with_ai(
         logger.info(
             f"Successfully extracted {len(result.boxes)} boxes"
         )
-        
-        # Save to cache
-        if cache_key:
-            grading_utils.save_to_cache(cache_key, result.model_dump())
 
         return result
 

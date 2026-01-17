@@ -2,7 +2,6 @@
 
 import os
 import json
-import hashlib
 import uuid
 from io import BytesIO
 from typing import Optional, Dict, Any, List
@@ -14,7 +13,6 @@ from google.adk.agents import SequentialAgent
 from pydantic import BaseModel, Field
 
 from ..common import setup_agent_environment, run_agent_with_retry
-import grading_utils
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
@@ -64,7 +62,7 @@ async def generate_student_report_with_ai(
     max_retries: int = 3,
 ) -> str:
     """
-    Generate student performance report using AI with manual caching.
+    Generate student performance report using AI with ADK callback-based caching.
     
     Args:
         student_id: Student identifier
@@ -77,24 +75,37 @@ async def generate_student_report_with_ai(
     Returns:
         Generated performance report text
     """
-    # Check cache
-    cache_key = None
-    try:
-        payload_hash = hashlib.sha256(
-            question_details.encode("utf-8")
-        ).hexdigest()
-        cache_key = grading_utils.get_cache_key(
-            "performance_report",
-            model="gemini-3-flash-preview",
-            student_id=str(student_id),
-            payload_hash=payload_hash,
-        )
-        cached = grading_utils.get_from_cache(cache_key)
-        if cached and isinstance(cached, dict) and "report" in cached:
-            logger.info(f"Performance report cache hit for {student_id}")
-            return cached["report"]
-    except Exception as e:
-        logger.warning(f"Cache lookup failed: {e}")
+    # Import callback creator
+    from ..caching_callback import create_analytics_cache_callbacks
+    
+    # Create caching callbacks
+    payload_data = {
+        "student_id": str(student_id),
+        "question_details": question_details
+    }
+    before_callback, after_callback = create_analytics_cache_callbacks(
+        cache_type="performance_report",
+        payload_data=payload_data,
+        model="gemini-3-flash-preview"
+    )
+    
+    # Create student performance agent with caching callbacks
+    student_performance_agent_cached = Agent(
+        model="gemini-3-flash-preview",
+        name="student_performance_generator",
+        description="Agent for generating personalized student performance reports.",
+        instruction=student_performance_agent.instruction,  # Reuse the detailed instruction
+        output_schema=StudentPerformanceResponse,
+        output_key="output",
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.7,
+            top_p=0.9,
+            max_output_tokens=8192,
+            response_mime_type="application/json",
+        ),
+        before_model_callback=before_callback,
+        after_model_callback=after_callback
+    )
 
     try:
         user_prompt = f"""Student: {student_id} - {student_name} (Class: {student_class})
@@ -109,17 +120,13 @@ Use the question details, marking schemes, awarded marks, and answers below:
         )
 
         result = await run_agent_with_retry(
-            agent=student_performance_agent,
+            agent=student_performance_agent_cached,
             user_content=content,
             app_name="student_performance_generator",
             output_type=StudentPerformanceResponse,
             max_retries=max_retries,
             logger=logger
         )
-        
-        # Save to cache
-        if cache_key:
-            grading_utils.save_to_cache(cache_key, {"report": result.report_text})
 
         return result.report_text
 
@@ -277,7 +284,7 @@ async def generate_class_overview_with_ai(
     max_retries: int = 3
 ) -> ClassOverviewResponse:
     """
-    Generate class overview report using AI.
+    Generate class overview report using AI with ADK callback-based caching.
     
     Args:
         summary_payload: Summary statistics dictionary
@@ -290,38 +297,31 @@ async def generate_class_overview_with_ai(
     # Format sample reports
     report_blob = "\n\n---\n\n".join(sample_reports)
 
-    # Check cache
-    cache_key = None
-    try:
-        payload_hash = hashlib.sha256(
-            (json.dumps(summary_payload, sort_keys=True) + report_blob).encode("utf-8")
-        ).hexdigest()
-        cache_key = grading_utils.get_cache_key(
-            "class_overview_report",
-            model="gemini-3-flash-preview",
-            payload_hash=payload_hash,
-        )
-        cached = grading_utils.get_from_cache(cache_key)
-        if cached and isinstance(cached, dict) and "report" in cached:
-            # Validate image file existence if present
-            image_path = cached.get("infograph_image_path")
-            if (image_path and
-                not str(image_path).startswith("IMAGE_GENERATION_") and
-                not os.path.exists(image_path)):
-                logger.warning(
-                    f"Cache hit but image file missing: {image_path}. "
-                    "Invalidating cache."
-                )
-                cached = None
-
-            if cached:
-                logger.info("Class overview cache hit")
-                return ClassOverviewResponse(
-                    report_text=cached["report"],
-                    infograph_image_path=cached.get("infograph_image_path")
-                )
-    except Exception as e:
-        logger.warning(f"Cache lookup failed: {e}")
+    # Import callback creator
+    from ..caching_callback import create_analytics_cache_callbacks
+    
+    # Create caching callbacks
+    payload_data = {
+        "summary": summary_payload,
+        "reports": report_blob
+    }
+    before_callback, after_callback = create_analytics_cache_callbacks(
+        cache_type="class_overview_report",
+        payload_data=payload_data,
+        model="gemini-3-flash-preview"
+    )
+    
+    # Create class overview agent with caching callbacks
+    class_overview_agent_cached = SequentialAgent(
+        name="class_overview_agent",
+        description="Sequential agent for generating class overview text and infographic.",
+        sub_agents=[
+            class_overview_text_generator,
+            class_overview_infograph_generator
+        ],
+        before_model_callback=before_callback,
+        after_model_callback=after_callback
+    )
 
     try:
         user_prompt = f"""Key metrics (JSON): {json.dumps(summary_payload)}
@@ -335,20 +335,13 @@ Individual reports (separated by ---):
         )
 
         result = await run_agent_with_retry(
-            agent=class_overview_agent,
+            agent=class_overview_agent_cached,
             user_content=content,
             app_name="class_overview_generator",
             output_type=ClassOverviewResponse,
             max_retries=max_retries,
             logger=logger
         )
-
-        # Save to cache
-        if cache_key:
-            grading_utils.save_to_cache(cache_key, {
-                "report": result.report_text,
-                "infograph_image_path": result.infograph_image_path
-            })
 
         return result
 
@@ -518,7 +511,7 @@ async def generate_question_insights_with_ai(
     max_retries: int = 3
 ) -> QuestionAnalysisResponse:
     """
-    Generate question-level insights and infographic using AI.
+    Generate question-level insights and infographic using AI with ADK callback-based caching.
     
     Args:
         question_data_payload: Question performance data dictionary
@@ -527,35 +520,27 @@ async def generate_question_insights_with_ai(
     Returns:
         QuestionAnalysisResponse with analysis text and optional infographic path
     """
-    # Check cache
-    cache_key = None
-    try:
-        payload_str = json.dumps(question_data_payload, sort_keys=True)
-        payload_hash = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
-        cache_key = grading_utils.get_cache_key(
-            "class_overview_report",
-            sub_type="question_insights",
-            model="gemini-3-flash-preview",
-            payload_hash=payload_hash,
-        )
-        cached = grading_utils.get_from_cache(cache_key)
-        if cached and isinstance(cached, dict) and "report_text" in cached:
-            # Validate image file existence if present
-            image_path = cached.get("infograph_image_path")
-            if (image_path and
-                not str(image_path).startswith("IMAGE_GENERATION_") and
-                not os.path.exists(image_path)):
-                logger.warning(
-                    f"Cache hit but image file missing: {image_path}. "
-                    "Invalidating cache."
-                )
-                cached = None
-
-            if cached:
-                logger.info("Question insights cache hit")
-                return QuestionAnalysisResponse(**cached)
-    except Exception as e:
-        logger.warning(f"Cache lookup failed: {e}")
+    # Import callback creator
+    from ..caching_callback import create_analytics_cache_callbacks
+    
+    # Create caching callbacks
+    before_callback, after_callback = create_analytics_cache_callbacks(
+        cache_type="question_insights",
+        payload_data=question_data_payload,
+        model="gemini-3-flash-preview"
+    )
+    
+    # Create question analysis agent with caching callbacks
+    question_analysis_agent_cached = SequentialAgent(
+        name="question_analysis_agent",
+        description="Sequential agent for generating question-level insights and infographic.",
+        sub_agents=[
+            question_insight_text_generator,
+            question_insight_infograph_generator
+        ],
+        before_model_callback=before_callback,
+        after_model_callback=after_callback
+    )
 
     try:
         user_prompt = f"""**Question Performance Data (JSON):**
@@ -567,20 +552,13 @@ async def generate_question_insights_with_ai(
         )
 
         result = await run_agent_with_retry(
-            agent=question_analysis_agent,
+            agent=question_analysis_agent_cached,
             user_content=content,
             app_name="question_analysis_generator",
             output_type=QuestionAnalysisResponse,
             max_retries=max_retries,
             logger=logger
         )
-
-        # Save to cache
-        if cache_key:
-            grading_utils.save_to_cache(cache_key, {
-                "report_text": result.report_text,
-                "infograph_image_path": result.infograph_image_path
-            })
 
         return result
 

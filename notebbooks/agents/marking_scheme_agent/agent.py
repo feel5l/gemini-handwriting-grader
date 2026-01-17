@@ -1,6 +1,5 @@
 """Marking scheme agent for extracting and verifying marking schemes."""
 
-import hashlib
 from typing import List, Tuple, Dict, Any
 from google.genai import types
 from google.adk.agents import Agent, SequentialAgent
@@ -10,7 +9,6 @@ from google.adk.agents.callback_context import CallbackContext
 from pydantic import BaseModel, Field
 
 from ..common import setup_agent_environment, run_agent_with_retry
-import grading_utils
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
@@ -273,7 +271,7 @@ async def extract_marking_scheme_with_ai(
     max_retries: int = 3
 ) -> Tuple[List[Dict[str, Any]], str]:
     """
-    Extract marking scheme using AI with manual caching.
+    Extract marking scheme using AI with ADK callback-based caching.
     
     Args:
         markdown_content: Markdown content of the marking scheme document
@@ -287,23 +285,32 @@ async def extract_marking_scheme_with_ai(
     Raises:
         Exception: If extraction fails after all retries
     """
-    # Check cache
-    cache_key = None
-    try:
-        content_hash = hashlib.sha256(
-            markdown_content.encode("utf-8")
-        ).hexdigest()
-        cache_key = grading_utils.get_cache_key(
-            "marking_scheme_extraction",
-            model="gemini-3-flash-preview",
-            content_hash=content_hash,
-        )
-        cached = grading_utils.get_from_cache(cache_key)
-        if cached is not None:
-            logger.info("Marking scheme cache hit")
-            return cached[0], cached[1]
-    except Exception as e:
-        logger.warning(f"Cache lookup failed: {e}")
+    # Import callback creator
+    from ..caching_callback import create_marking_scheme_cache_callbacks
+    
+    # Create caching callbacks
+    before_callback, after_callback = create_marking_scheme_cache_callbacks(
+        markdown_content=markdown_content,
+        model="gemini-3-flash-preview"
+    )
+    
+    # Create marking scheme agent with caching callbacks
+    marking_scheme_agent_cached = Agent(
+        model="gemini-3-flash-preview",
+        name="marking_scheme_extractor",
+        description="Agent for extracting structured marking schemes from documents.",
+        instruction=marking_scheme_agent.instruction,  # Reuse the detailed instruction
+        output_schema=MarkingSchemeResponse,
+        output_key="output",
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.0,
+            top_p=0.3,
+            max_output_tokens=65535,
+            response_mime_type="application/json",
+        ),
+        before_model_callback=before_callback,
+        after_model_callback=after_callback
+    )
 
     try:
         user_prompt = f"""**Document Content:**
@@ -316,7 +323,7 @@ async def extract_marking_scheme_with_ai(
         )
 
         result = await run_agent_with_retry(
-            agent=marking_scheme_agent,
+            agent=marking_scheme_agent_cached,
             user_content=content,
             app_name="marking_scheme_extractor",
             output_type=MarkingSchemeResponse,
@@ -334,13 +341,6 @@ async def extract_marking_scheme_with_ai(
             logger.info(
                 f"General grading guide extracted "
                 f"({len(general_guide)} characters)"
-            )
-
-        # Save to cache
-        if cache_key:
-            grading_utils.save_to_cache(
-                cache_key,
-                (questions_data, general_guide)
             )
 
         return questions_data, general_guide

@@ -7,7 +7,6 @@ from google.adk.agents.llm_agent import Agent
 from pydantic import BaseModel, Field
 
 from ..common import setup_agent_environment, run_agent_with_retry
-import grading_utils
 
 # Setup environment and logging
 logger = setup_agent_environment(__file__)
@@ -58,7 +57,7 @@ async def moderate_grades_with_ai(
     max_retries: int = 3
 ) -> List[Dict[str, Any]]:
     """
-    Moderate grades using the moderation agent with manual caching.
+    Moderate grades using the moderation agent with ADK callback-based caching.
     
     Args:
         question_text: The question text
@@ -70,23 +69,38 @@ async def moderate_grades_with_ai(
     Returns:
         List of moderation results with moderated marks
     """
-    # Check cache
-    cache_key = None
-    try:
-        cache_key = grading_utils.get_cache_key(
-            "grade_moderator",
-            model="gemini-3-pro-preview",
-            question=question_text,
-            scheme=marking_scheme_text,
-            total_marks=total_marks,
-            entries=entries
-        )
-        cached = grading_utils.get_from_cache(cache_key)
-        if cached is not None:
-            logger.info("Moderation cache hit")
-            return cached
-    except Exception as e:
-        logger.warning(f"Cache lookup failed: {e}")
+    # Import callback creator
+    from ..caching_callback import create_moderation_cache_callbacks
+    
+    # Create caching callbacks
+    before_callback, after_callback = create_moderation_cache_callbacks(
+        question_text=question_text,
+        marking_scheme_text=marking_scheme_text,
+        total_marks=total_marks,
+        entries=entries,
+        model="gemini-3-pro-preview"
+    )
+    
+    # Create moderation agent with caching callbacks
+    moderation_agent_cached = Agent(
+        model="gemini-3-pro-preview",
+        name="grading_moderator",
+        description="Agent to moderate grading results for consistency.",
+        instruction=(
+            "You are a grading moderator ensuring fairness and consistency. "
+            "Review the student responses and marks."
+        ),
+        output_schema=ModerationResponse,
+        output_key="output",
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.0,
+            top_p=0.3,
+            max_output_tokens=65535,
+            response_mime_type="application/json",
+        ),
+        before_model_callback=before_callback,
+        after_model_callback=after_callback
+    )
 
     entries_json = json.dumps(entries, ensure_ascii=False)
     
@@ -111,7 +125,7 @@ Responses:
         )
         
         result = await run_agent_with_retry(
-            agent=moderation_agent,
+            agent=moderation_agent_cached,
             user_content=content,
             app_name="grading_moderator",
             output_type=ModerationResponse,
@@ -135,10 +149,6 @@ Responses:
                 min(float(total_marks), item.moderated_mark)
             )
             results.append(item.model_dump())
-        
-        # Save to cache
-        if cache_key:
-            grading_utils.save_to_cache(cache_key, results)
             
         return results
             
