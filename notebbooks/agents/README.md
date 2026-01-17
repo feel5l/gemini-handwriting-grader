@@ -151,6 +151,24 @@ The `common.py` module provides shared utilities:
 
 ## Features
 
+### Cache Control
+Control caching behavior for each agent type individually:
+
+```bash
+# In .env file
+AGENT_CACHE_ENABLED=TRUE          # Master control for all agents
+AGENT_CACHE_OCR=TRUE              # Control OCR caching
+AGENT_CACHE_GRADING=TRUE          # Control grading caching
+AGENT_CACHE_MODERATION=TRUE       # Control moderation caching
+AGENT_CACHE_MARKING_SCHEME=TRUE   # Control marking scheme caching
+AGENT_CACHE_ANNOTATION=TRUE       # Control annotation caching
+AGENT_CACHE_ANALYTICS=TRUE        # Control analytics caching
+```
+
+Set to `FALSE` to disable caching for specific agents - useful for debugging, testing, or forcing fresh results.
+
+**Full guide:** `CACHE_CONTROL.md`
+
 ### Log Level Configuration
 Control logging verbosity with the `AGENT_LOG_LEVEL` environment variable:
 
@@ -279,6 +297,7 @@ python -c "from notebbooks.agents import *"
 
 For detailed information, see:
 - `README.md` (this file) - Agent overview and usage
+- `CACHE_CONTROL.md` - Cache control configuration guide
 - `CACHING_REFACTOR.md` - Caching implementation details
 - `LOG_LEVEL_QUICK_REF.md` - Log level configuration
 - `../../docs/COMPLETE_AGENT_REFACTORING.md` - Complete refactoring documentation

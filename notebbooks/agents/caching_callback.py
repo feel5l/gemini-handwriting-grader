@@ -6,6 +6,7 @@ This module provides caching functions that follow the Google ADK callback patte
 - after_model_callback: Saves responses to cache after successful LLM calls
 """
 
+import os
 import hashlib
 import json
 import logging
@@ -17,6 +18,32 @@ from google.genai import types
 import grading_utils
 
 logger = logging.getLogger(__name__)
+
+
+def is_cache_enabled(agent_type: str) -> bool:
+    """
+    Check if caching is enabled for a specific agent type.
+    
+    Args:
+        agent_type: Agent type identifier (e.g., 'ocr', 'grading', 'moderation')
+        
+    Returns:
+        True if caching is enabled, False otherwise
+    """
+    # Check master cache control
+    master_enabled = os.getenv("AGENT_CACHE_ENABLED", "TRUE").upper() == "TRUE"
+    if not master_enabled:
+        logger.debug(f"[{agent_type}] Caching disabled by AGENT_CACHE_ENABLED=FALSE")
+        return False
+    
+    # Check individual agent cache control
+    env_var = f"AGENT_CACHE_{agent_type.upper()}"
+    agent_enabled = os.getenv(env_var, "TRUE").upper() == "TRUE"
+    
+    if not agent_enabled:
+        logger.debug(f"[{agent_type}] Caching disabled by {env_var}=FALSE")
+    
+    return agent_enabled
 
 
 def create_ocr_cache_callbacks(
@@ -41,6 +68,9 @@ def create_ocr_cache_callbacks(
     Returns:
         Tuple of (before_callback, after_callback)
     """
+    # Check if caching is enabled for OCR
+    cache_enabled = is_cache_enabled("ocr")
+    
     # Generate cache key from parameters
     image_hash = hashlib.sha256(image_data).hexdigest()
     cache_key = grading_utils.get_cache_key(
@@ -55,6 +85,9 @@ def create_ocr_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
+        if not cache_enabled:
+            return None
+            
         agent_name = callback_context.agent_name
         
         logger.debug(f"[{agent_name}] OCR before_callback - checking cache (key: {cache_key[1][:16]}...)")
@@ -95,6 +128,9 @@ def create_ocr_cache_callbacks(
         llm_response: LlmResponse
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
+        if not cache_enabled:
+            return llm_response
+            
         agent_name = callback_context.agent_name
         logger.debug(f"[{agent_name}] OCR after_callback - saving to cache")
         
@@ -143,6 +179,9 @@ def create_grading_cache_callbacks(
     Returns:
         Tuple of (before_callback, after_callback)
     """
+    # Check if caching is enabled for grading
+    cache_enabled = is_cache_enabled("grading")
+    
     cache_key = grading_utils.get_cache_key(
         "grade_answer",
         model=model,
@@ -157,6 +196,9 @@ def create_grading_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
+        if not cache_enabled:
+            return None
+            
         agent_name = callback_context.agent_name
         
         logger.debug(f"[{agent_name}] Grading before_callback - checking cache (key: {cache_key[1][:16]}...)")
@@ -196,6 +238,9 @@ def create_grading_cache_callbacks(
         llm_response: LlmResponse
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
+        if not cache_enabled:
+            return llm_response
+            
         agent_name = callback_context.agent_name
         logger.debug(f"[{agent_name}] Grading after_callback - saving to cache")
         
@@ -246,6 +291,9 @@ def create_ocr_grading_cache_callbacks(
     Returns:
         Tuple of (before_callback, after_callback)
     """
+    # Check if caching is enabled for grading (OCR+grading uses grading cache control)
+    cache_enabled = is_cache_enabled("grading")
+    
     image_hash = hashlib.sha256(image_data).hexdigest()
     cache_key = grading_utils.get_cache_key(
         "grade_answer_ocr",
@@ -261,6 +309,9 @@ def create_ocr_grading_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
+        if not cache_enabled:
+            return None
+            
         agent_name = callback_context.agent_name
         
         try:
@@ -296,6 +347,9 @@ def create_ocr_grading_cache_callbacks(
         llm_response: LlmResponse
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
+        if not cache_enabled:
+            return llm_response
+            
         try:
             if llm_response.content and llm_response.content.parts:
                 response_text = llm_response.content.parts[0].text
@@ -341,6 +395,9 @@ def create_moderation_cache_callbacks(
     """
     import json
     
+    # Check if caching is enabled for moderation
+    cache_enabled = is_cache_enabled("moderation")
+    
     cache_key = grading_utils.get_cache_key(
         "grade_moderator",
         model=model,
@@ -355,6 +412,9 @@ def create_moderation_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
+        if not cache_enabled:
+            return None
+            
         agent_name = callback_context.agent_name
         
         try:
@@ -387,6 +447,9 @@ def create_moderation_cache_callbacks(
         llm_response: LlmResponse
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
+        if not cache_enabled:
+            return llm_response
+            
         try:
             if llm_response.content and llm_response.content.parts:
                 response_text = llm_response.content.parts[0].text
@@ -430,6 +493,9 @@ def create_marking_scheme_cache_callbacks(
     """
     import json
     
+    # Check if caching is enabled for marking scheme
+    cache_enabled = is_cache_enabled("marking_scheme")
+    
     content_hash = hashlib.sha256(markdown_content.encode("utf-8")).hexdigest()
     cache_key = grading_utils.get_cache_key(
         "marking_scheme_extraction",
@@ -442,6 +508,9 @@ def create_marking_scheme_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
+        if not cache_enabled:
+            return None
+            
         agent_name = callback_context.agent_name
         
         logger.debug(f"[{agent_name}] before_callback called - checking cache...")
@@ -491,6 +560,9 @@ def create_marking_scheme_cache_callbacks(
         llm_response: LlmResponse
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
+        if not cache_enabled:
+            return llm_response
+            
         agent_name = callback_context.agent_name
         logger.debug(f"[{agent_name}] after_callback called - saving to cache...")
         
@@ -555,6 +627,9 @@ def create_annotation_cache_callbacks(
     """
     import json
     
+    # Check if caching is enabled for annotation
+    cache_enabled = is_cache_enabled("annotation")
+    
     image_hash = hashlib.sha256(image_data).hexdigest()
     cache_key = grading_utils.get_cache_key(
         "annotation_extraction",
@@ -567,6 +642,9 @@ def create_annotation_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
+        if not cache_enabled:
+            return None
+            
         agent_name = callback_context.agent_name
         
         try:
@@ -599,6 +677,9 @@ def create_annotation_cache_callbacks(
         llm_response: LlmResponse
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
+        if not cache_enabled:
+            return llm_response
+            
         try:
             if llm_response.content and llm_response.content.parts:
                 response_text = llm_response.content.parts[0].text
@@ -639,6 +720,9 @@ def create_analytics_cache_callbacks(
     """
     import json
     
+    # Check if caching is enabled for analytics
+    cache_enabled = is_cache_enabled("analytics")
+    
     # Generate hash from payload
     if isinstance(payload_data, dict):
         payload_str = json.dumps(payload_data, sort_keys=True)
@@ -657,6 +741,9 @@ def create_analytics_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
+        if not cache_enabled:
+            return None
+            
         agent_name = callback_context.agent_name
         
         try:
@@ -692,6 +779,9 @@ def create_analytics_cache_callbacks(
         llm_response: LlmResponse
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
+        if not cache_enabled:
+            return llm_response
+            
         try:
             if llm_response.content and llm_response.content.parts:
                 response_text = llm_response.content.parts[0].text
@@ -737,6 +827,9 @@ def create_marking_scheme_verification_cache_callbacks(
     """
     import json
     
+    # Check if caching is enabled for marking scheme
+    cache_enabled = is_cache_enabled("marking_scheme")
+    
     # Generate hash from questions data
     questions_str = json.dumps(questions_data, sort_keys=True)
     questions_hash = hashlib.sha256(questions_str.encode("utf-8")).hexdigest()
@@ -751,6 +844,9 @@ def create_marking_scheme_verification_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
+        if not cache_enabled:
+            return None
+            
         agent_name = callback_context.agent_name
         
         try:
@@ -799,6 +895,9 @@ def create_marking_scheme_verification_cache_callbacks(
         llm_response: LlmResponse
     ) -> LlmResponse:
         """Save formatted response to cache after LLM call."""
+        if not cache_enabled:
+            return llm_response
+            
         try:
             if llm_response.content and llm_response.content.parts:
                 response_text = llm_response.content.parts[0].text
@@ -846,6 +945,9 @@ def create_verification_searcher_cache_callbacks(
     """
     import json
     
+    # Check if caching is enabled for marking scheme
+    cache_enabled = is_cache_enabled("marking_scheme")
+    
     # Generate hash from questions data
     questions_str = json.dumps(questions_data, sort_keys=True)
     questions_hash = hashlib.sha256(questions_str.encode("utf-8")).hexdigest()
@@ -860,6 +962,9 @@ def create_verification_searcher_cache_callbacks(
         llm_request: LlmRequest
     ) -> Optional[LlmResponse]:
         """Check cache before LLM call."""
+        if not cache_enabled:
+            return None
+            
         agent_name = callback_context.agent_name
         
         try:
@@ -926,19 +1031,20 @@ def create_verification_searcher_cache_callbacks(
                             types.Part(text=citation_text)
                         )
         
-        # Then, save to cache (with citations included)
-        try:
-            if llm_response.content and llm_response.content.parts:
-                response_text = llm_response.content.parts[0].text
-                if response_text:
-                    grading_utils.save_to_cache(
-                        cache_key,
-                        {"result": response_text},
-                        cache_dir=cache_dir
-                    )
-                    logger.debug(f"Saved verification searcher result to cache (key: {cache_key[1][:8]}...)")
-        except Exception as e:
-            logger.warning(f"Failed to save to cache: {e}")
+        # Then, save to cache (with citations included) if enabled
+        if cache_enabled:
+            try:
+                if llm_response.content and llm_response.content.parts:
+                    response_text = llm_response.content.parts[0].text
+                    if response_text:
+                        grading_utils.save_to_cache(
+                            cache_key,
+                            {"result": response_text},
+                            cache_dir=cache_dir
+                        )
+                        logger.debug(f"Saved verification searcher result to cache (key: {cache_key[1][:8]}...)")
+            except Exception as e:
+                logger.warning(f"Failed to save to cache: {e}")
         
         return llm_response
     
