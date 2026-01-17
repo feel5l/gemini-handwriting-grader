@@ -362,36 +362,28 @@ pip install -r requirements.txt
 
 ## 📚 Documentation
 
-### **Complete Documentation**
-- **📖 Main Guide**: `docs/COMPLETE_ENHANCEMENT_DOCUMENTATION.md`
-- **📋 Final Summary**: `docs/FINAL_COMPLETE_SUMMARY.md`
-- **🔧 Setup Guide**: Individual notebook documentation
+### **Documentation Index**
+All documentation is organized in the `docs/` directory. See **[docs/README.md](docs/README.md)** for the complete index.
+
+### **Quick Links**
+- **📖 Agent System**: [docs/AGENTS_README.md](docs/AGENTS_README.md) - Agent usage and API reference
+- **⚙️ Cache Control**: [docs/CACHE_CONTROL.md](docs/CACHE_CONTROL.md) - Configure caching behavior
+- **📊 Log Levels**: [docs/LOG_LEVEL_QUICK_REF.md](docs/LOG_LEVEL_QUICK_REF.md) - Configure logging output
+- **🔧 Caching Details**: [docs/CACHING_REFACTOR.md](docs/CACHING_REFACTOR.md) - Caching implementation details
 
 ### **Getting Started**
 1. **Clone Repository**: `git clone <repository-url>`
 2. **Setup Environment**: Install dependencies and configure API keys
 3. **Prepare Input Files**: Copy templates from `sample/` to `data/`
-4. **Run Notebooks**: Execute notebooks in sequence
+4. **Run Notebooks**: Execute notebooks in sequence (Step 1-7)
 5. **Review Outputs**: Check generated reports and analytics
 
-### **Key Features**
-- **Multi-Sheet Excel Output**: Step 2 provides comprehensive validation with structured data
-- **Professional Reports**: Step 6 generates professional-grade reports with AI insights
-- **Robust Error Handling**: Better error handling and validation throughout
-- **Modern Library Stack**: Updated to current, supported versions
-- **Intelligent Metadata Handling**: Proper exclusion of student info fields
-- **Professional Output**: Word and PowerPoint documents with embedded visualizations
-
-### **Reliability Improvements**
-- **Comprehensive Error Handling**: Graceful degradation under all conditions
-- **Validation**: Data integrity checks at every step
-- **Intelligent Caching**: Organized cache structure for efficiency
-- **Progress Tracking**: Visual indicators and detailed logging
-
-### **Analytics & Insights**
-- **AI-Powered Analysis**: Individual and class performance insights
-- **Visual Analytics**: Professional charts and data visualizations
-- **Actionable Recommendations**: Specific next steps for instruction
-- **Multi-Format Output**: Excel, Word, PDF, PPTX for different stakeholders
+### **System Highlights**
+- **🤖 AI-Powered**: Individual and class-level performance analysis with actionable insights
+- **📊 Professional Output**: Multi-format reports (Excel, Word, PowerPoint, PDF) ready for stakeholders
+- **🛡️ Production-Ready**: Comprehensive error handling, validation, and graceful degradation
+- **⚡ Efficient**: Intelligent caching reduces API calls and speeds up reruns
+- **📈 Visual Analytics**: Charts and graphs for data-driven decision making
+- **🔍 Transparent**: Complete audit trail with detailed reasoning and raw data
 
 This system transforms the grading process into a comprehensive, professional-grade assessment system that provides deep insights into student performance while maintaining the efficiency and accuracy of AI-powered automation.
