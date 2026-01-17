@@ -199,8 +199,10 @@ def generate_infographic_tool(report_text: str) -> str:
                     image = Image.open(BytesIO(part.inline_data.data))
                     image.save(image_path)
                     
-                    logger.info(f"Tool saved infographic to {image_path}")
-                    return os.path.abspath(image_path)
+                    # Return relative path from project root
+                    relative_path = os.path.relpath(image_path, base_dir)
+                    logger.info(f"Tool saved infographic to {image_path} (relative: {relative_path})")
+                    return relative_path
                 except Exception as img_err:
                     logger.error(f"Failed to process/save image data: {img_err}")
                     raise img_err
@@ -460,8 +462,10 @@ def generate_question_infographic_tool(analysis_text: str) -> str:
                     image = Image.open(BytesIO(part.inline_data.data))
                     image.save(image_path)
                     
-                    logger.info(f"Tool saved question infographic to {image_path}")
-                    return os.path.abspath(image_path)
+                    # Return relative path from project root
+                    relative_path = os.path.relpath(image_path, base_dir)
+                    logger.info(f"Tool saved question infographic to {image_path} (relative: {relative_path})")
+                    return relative_path
                 except Exception as img_err:
                     logger.error(f"Failed to save question image data: {img_err}")
                     raise img_err
