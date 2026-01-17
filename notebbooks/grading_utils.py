@@ -10,8 +10,7 @@ import logging
 from typing import Tuple, Optional, Any, Dict, List
 from pathlib import Path
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+
 
 # Setup logger for this module
 logger = logging.getLogger(__name__)
@@ -77,37 +76,6 @@ def create_directories(paths: dict):
     for key in dir_keys:
         if key in paths:
             os.makedirs(paths[key], exist_ok=True)
-
-
-# =======================
-# Gemini Client Setup
-# =======================
-
-def init_gemini_client(env_path: str = "../.env"):
-    """
-    Initialize Gemini client with API key from .env file.
-
-    Args:
-        env_path: Path to .env file
-
-    Returns:
-        genai.Client: Initialized Gemini client
-
-    Raises:
-        ValueError: If API key is missing or invalid
-    """
-    load_dotenv(env_path)
-    api_key = os.getenv("GOOGLE_GENAI_API_KEY")
-
-    if not api_key or api_key == "your-api-key-here":
-        raise ValueError(
-            f"Please set GOOGLE_GENAI_API_KEY in {env_path}\n"
-            "Get your API key from: https://aistudio.google.com/apikey"
-        )
-
-    client = genai.Client(vertexai=True, api_key=api_key)
-    logger.info("✓ Vertex AI Express Mode initialized")
-    return client
 
 
 # =======================
@@ -377,68 +345,3 @@ def print_validation_summary(title, is_valid, errors):
             print(f"   {i}. {error}")
     
     print(f"{'='*60}")
-
-
-# =======================
-# Markdown Conversion
-# =======================
-
-def markdown_to_html(markdown_text: str) -> str:
-    """
-    Convert markdown to HTML without external libraries.
-
-    Args:
-        markdown_text: Markdown formatted text
-
-    Returns:
-        str: HTML formatted text
-    """
-    import re
-
-    if not markdown_text:
-        return ""
-
-    html = str(markdown_text)
-
-    # Convert headers
-    html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
-    html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
-    html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
-
-    # Convert bold and italic
-    html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
-    html = re.sub(r'__(.+?)__', r'<strong>\1</strong>', html)
-    html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
-    html = re.sub(r'_(.+?)_', r'<em>\1</em>', html)
-
-    # Convert bullet points
-    lines = html.split('\n')
-    in_list = False
-    result = []
-    for line in lines:
-        if re.match(r'^[\*\-\+]\s+', line):
-            if not in_list:
-                result.append('<ul>')
-                in_list = True
-            item = re.sub(r'^[\*\-\+]\s+', '', line)
-            result.append(f'<li>{item}</li>')
-        else:
-            if in_list:
-                result.append('</ul>')
-                in_list = False
-            result.append(line)
-    if in_list:
-        result.append('</ul>')
-
-    html = '\n'.join(result)
-
-    # Convert paragraphs
-    html = re.sub(r'\n\n+', '</p><p>', html)
-    html = f'<p>{html}</p>'
-
-    # Clean up empty paragraphs
-    html = re.sub(r'<p>\s*</p>', '', html)
-    html = re.sub(r'<p>\s*<(h[1-6]|ul)>', r'<\1>', html)
-    html = re.sub(r'</(h[1-6]|ul)>\s*</p>', r'</\1>', html)
-
-    return html
