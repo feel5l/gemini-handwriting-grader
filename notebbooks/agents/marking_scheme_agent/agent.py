@@ -153,7 +153,7 @@ async def extract_marking_scheme_with_ai(
     Raises:
         Exception: If extraction fails after all retries
     """
-    logger.info("Creating marking scheme agent with caching callbacks...")
+    logger.debug("Creating marking scheme agent with caching callbacks...")
     
     # Create caching callbacks
     before_callback, after_callback = create_marking_scheme_cache_callbacks(
@@ -179,7 +179,7 @@ async def extract_marking_scheme_with_ai(
         after_model_callback=after_callback
     )
     
-    logger.info("Agent created successfully with caching callbacks")
+    logger.debug("Agent created successfully with caching callbacks")
 
     user_prompt = f"""**Document Content:**
 
@@ -230,7 +230,7 @@ async def verify_marking_scheme_with_ai(
         - verification_items: List of verification result dictionaries
         - general_feedback: Overall feedback string
     """
-    logger.info("Creating verification agents with caching callbacks...")
+    logger.debug("Creating verification agents with caching callbacks...")
     
     # Create caching callbacks for the searcher agent (Google Search + citations)
     before_callback_searcher, after_callback_searcher = create_verification_searcher_cache_callbacks(
@@ -287,7 +287,7 @@ async def verify_marking_scheme_with_ai(
         ]
     )
     
-    logger.info("Verification agents created with caching")
+    logger.debug("Verification agents created with caching")
     
     # Prepare content for verification
     questions_text = ""

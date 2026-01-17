@@ -57,7 +57,7 @@ def create_ocr_cache_callbacks(
         """Check cache before LLM call."""
         agent_name = callback_context.agent_name
         
-        logger.info(f"[{agent_name}] OCR before_callback - checking cache (key: {cache_key[1][:16]}...)")
+        logger.debug(f"[{agent_name}] OCR before_callback - checking cache (key: {cache_key[1][:16]}...)")
         
         try:
             cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
@@ -73,7 +73,7 @@ def create_ocr_cache_callbacks(
                 else:
                     response_text = str(cached_result)
                 
-                logger.info(f"[{agent_name}] Returning cached OCR result ({len(response_text)} chars)")
+                logger.debug(f"[{agent_name}] Returning cached OCR result ({len(response_text)} chars)")
                 
                 # Return cached response to skip LLM call
                 return LlmResponse(
@@ -83,7 +83,7 @@ def create_ocr_cache_callbacks(
                     )
                 )
             
-            logger.info(f"[{agent_name}] OCR cache miss, proceeding with LLM call")
+            logger.debug(f"[{agent_name}] OCR cache miss, proceeding with LLM call")
             
         except Exception as e:
             logger.warning(f"[{agent_name}] Cache lookup failed: {e}, proceeding with LLM call")
@@ -96,13 +96,13 @@ def create_ocr_cache_callbacks(
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
         agent_name = callback_context.agent_name
-        logger.info(f"[{agent_name}] OCR after_callback - saving to cache")
+        logger.debug(f"[{agent_name}] OCR after_callback - saving to cache")
         
         try:
             if llm_response.content and llm_response.content.parts:
                 result_text = llm_response.content.parts[0].text
                 if result_text:
-                    logger.info(f"[{agent_name}] Saving OCR result to cache ({len(result_text)} chars)")
+                    logger.debug(f"[{agent_name}] Saving OCR result to cache ({len(result_text)} chars)")
                     grading_utils.save_to_cache(
                         cache_key,
                         {"result": result_text.strip()},
@@ -159,7 +159,7 @@ def create_grading_cache_callbacks(
         """Check cache before LLM call."""
         agent_name = callback_context.agent_name
         
-        logger.info(f"[{agent_name}] Grading before_callback - checking cache (key: {cache_key[1][:16]}...)")
+        logger.debug(f"[{agent_name}] Grading before_callback - checking cache (key: {cache_key[1][:16]}...)")
         
         try:
             cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
@@ -175,7 +175,7 @@ def create_grading_cache_callbacks(
                 else:
                     response_text = str(cached_result)
                 
-                logger.info(f"[{agent_name}] Returning cached grading result ({len(response_text)} chars)")
+                logger.debug(f"[{agent_name}] Returning cached grading result ({len(response_text)} chars)")
                 
                 return LlmResponse(
                     content=types.Content(
@@ -184,7 +184,7 @@ def create_grading_cache_callbacks(
                     )
                 )
             
-            logger.info(f"[{agent_name}] Grading cache miss, proceeding with LLM call")
+            logger.debug(f"[{agent_name}] Grading cache miss, proceeding with LLM call")
             
         except Exception as e:
             logger.warning(f"[{agent_name}] Cache lookup failed: {e}, proceeding with LLM call")
@@ -197,13 +197,13 @@ def create_grading_cache_callbacks(
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
         agent_name = callback_context.agent_name
-        logger.info(f"[{agent_name}] Grading after_callback - saving to cache")
+        logger.debug(f"[{agent_name}] Grading after_callback - saving to cache")
         
         try:
             if llm_response.content and llm_response.content.parts:
                 response_text = llm_response.content.parts[0].text
                 if response_text:
-                    logger.info(f"[{agent_name}] Parsing grading response ({len(response_text)} chars)")
+                    logger.debug(f"[{agent_name}] Parsing grading response ({len(response_text)} chars)")
                     # Parse JSON response and save
                     response_data = json.loads(response_text)
                     grading_utils.save_to_cache(
@@ -444,7 +444,7 @@ def create_marking_scheme_cache_callbacks(
         """Check cache before LLM call."""
         agent_name = callback_context.agent_name
         
-        logger.info(f"[{agent_name}] before_callback called - checking cache...")
+        logger.debug(f"[{agent_name}] before_callback called - checking cache...")
         
         try:
             cached_result = grading_utils.get_from_cache(cache_key, cache_dir=cache_dir)
@@ -462,7 +462,7 @@ def create_marking_scheme_cache_callbacks(
                 }
                 response_text = json.dumps(response_data, ensure_ascii=False)
                 
-                logger.info(f"[{agent_name}] Returning cached response ({len(response_text)} chars)")
+                logger.debug(f"[{agent_name}] Returning cached response ({len(response_text)} chars)")
                 
                 # Create a minimal LlmResponse without model_name or usage_metadata
                 # to avoid triggering Vertex AI processing
@@ -473,17 +473,17 @@ def create_marking_scheme_cache_callbacks(
                     )
                 )
                 
-                logger.info(f"[{agent_name}] Cached LlmResponse created successfully")
+                logger.debug(f"[{agent_name}] Cached LlmResponse created successfully")
                 return cached_response
             
-            logger.info(f"[{agent_name}] Marking scheme cache miss, proceeding with LLM call")
+            logger.debug(f"[{agent_name}] Marking scheme cache miss, proceeding with LLM call")
             
         except Exception as e:
             logger.error(f"[{agent_name}] Cache lookup failed: {e}", exc_info=True)
-            logger.info(f"[{agent_name}] Proceeding with LLM call due to cache error")
+            logger.debug(f"[{agent_name}] Proceeding with LLM call due to cache error")
         
         # Return None to proceed with actual LLM call
-        logger.info(f"[{agent_name}] before_callback returning None - will make LLM call")
+        logger.debug(f"[{agent_name}] before_callback returning None - will make LLM call")
         return None
     
     def after_callback(
@@ -492,21 +492,21 @@ def create_marking_scheme_cache_callbacks(
     ) -> LlmResponse:
         """Save response to cache after LLM call."""
         agent_name = callback_context.agent_name
-        logger.info(f"[{agent_name}] after_callback called - saving to cache...")
+        logger.debug(f"[{agent_name}] after_callback called - saving to cache...")
         
         try:
             if llm_response.content and llm_response.content.parts:
                 response_text = llm_response.content.parts[0].text
                 if response_text:
-                    logger.info(f"[{agent_name}] Parsing response ({len(response_text)} chars)")
+                    logger.debug(f"[{agent_name}] Parsing response ({len(response_text)} chars)")
                     
                     # Try to parse JSON response
                     try:
                         response_data = json.loads(response_text)
                     except json.JSONDecodeError as json_err:
                         logger.error(f"[{agent_name}] JSON parsing failed: {json_err}")
-                        logger.error(f"[{agent_name}] Response preview: {response_text[:500]}...")
-                        logger.error(f"[{agent_name}] Response end: ...{response_text[-500:]}")
+                        logger.debug(f"[{agent_name}] Response preview: {response_text[:500]}...")
+                        logger.debug(f"[{agent_name}] Response end: ...{response_text[-500:]}")
                         # Don't cache invalid JSON
                         return llm_response
                     
@@ -517,7 +517,7 @@ def create_marking_scheme_cache_callbacks(
                         logger.warning(f"[{agent_name}] No questions in response, not caching")
                         return llm_response
                     
-                    logger.info(f"[{agent_name}] Saving {len(questions_data)} questions to cache")
+                    logger.debug(f"[{agent_name}] Saving {len(questions_data)} questions to cache")
                     grading_utils.save_to_cache(
                         cache_key,
                         (questions_data, general_guide),
@@ -531,7 +531,7 @@ def create_marking_scheme_cache_callbacks(
         except Exception as e:
             logger.error(f"[{agent_name}] Failed to save to cache: {e}", exc_info=True)
         
-        logger.info(f"[{agent_name}] after_callback returning response")
+        logger.debug(f"[{agent_name}] after_callback returning response")
         return llm_response
     
     return before_callback, after_callback

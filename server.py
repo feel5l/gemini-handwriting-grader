@@ -8,6 +8,9 @@ from datetime import datetime, date, timedelta
 
 import flask
 
+# Setup logger
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 
 file_name = os.environ.get("file_name")
@@ -38,7 +41,7 @@ def get_file(path):
         content = fh.read()
 
     if mimetype == "image/jpeg":
-        print(mimetype)
+        logger.debug(f"Serving image with mimetype: {mimetype}")
         minutes = 180
         then = datetime.now() + timedelta(minutes=minutes)
         response = flask.Response()

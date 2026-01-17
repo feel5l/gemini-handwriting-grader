@@ -152,7 +152,7 @@ def generate_infographic_tool(report_text: str) -> str:
         File path of the saved image or error message
     """
     try:
-        logger.info("Generating infographic with NanoBanana tool...")
+        logger.debug("Generating infographic with NanoBanana tool...")
         
         # Initialize client
         api_key = (
@@ -201,7 +201,7 @@ def generate_infographic_tool(report_text: str) -> str:
                     
                     # Return relative path from project root
                     relative_path = os.path.relpath(image_path, base_dir)
-                    logger.info(f"Tool saved infographic to {image_path} (relative: {relative_path})")
+                    logger.debug(f"Tool saved infographic to {image_path} (relative: {relative_path})")
                     return relative_path
                 except Exception as img_err:
                     logger.error(f"Failed to process/save image data: {img_err}")
@@ -410,7 +410,7 @@ def generate_question_infographic_tool(analysis_text: str) -> str:
         File path of the saved image or error message
     """
     try:
-        logger.info("Generating question analysis infographic with NanoBanana tool...")
+        logger.debug("Generating question analysis infographic with NanoBanana tool...")
         
         # Initialize client
         api_key = (
@@ -464,7 +464,7 @@ def generate_question_infographic_tool(analysis_text: str) -> str:
                     
                     # Return relative path from project root
                     relative_path = os.path.relpath(image_path, base_dir)
-                    logger.info(f"Tool saved question infographic to {image_path} (relative: {relative_path})")
+                    logger.debug(f"Tool saved question infographic to {image_path} (relative: {relative_path})")
                     return relative_path
                 except Exception as img_err:
                     logger.error(f"Failed to save question image data: {img_err}")

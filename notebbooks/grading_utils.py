@@ -6,14 +6,17 @@ Consolidates repeated code across all notebook steps.
 import os
 import json
 import hashlib
+import logging
 from typing import Tuple, Optional, Any, Dict, List
 from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-import logging
+# Setup logger for this module
+logger = logging.getLogger(__name__)
 
+# Suppress verbose logging from Google libraries
 logging.getLogger("google").setLevel(logging.WARNING)
 logging.getLogger("google.auth").setLevel(logging.WARNING)
 logging.getLogger("google.auth.transport").setLevel(logging.WARNING)
@@ -103,7 +106,7 @@ def init_gemini_client(env_path: str = "../.env"):
         )
 
     client = genai.Client(vertexai=True, api_key=api_key)
-    print("✓ Vertex AI Express Mode initialized")
+    logger.info("✓ Vertex AI Express Mode initialized")
     return client
 
 
@@ -132,7 +135,7 @@ def get_cache_key(cache_type: str, **params) -> Tuple[str, str]:
         hash_key = hashlib.sha256(key_str.encode('utf-8')).hexdigest()
         return (cache_type, hash_key)
     except Exception as e:
-        print(f"Warning: Error generating cache key: {e}")
+        logger.warning(f"Error generating cache key: {e}")
         # Fallback for non-serializable params
         fallback_str = f"{cache_type}_{str(params)}"
         hash_key = hashlib.sha256(fallback_str.encode()).hexdigest()
@@ -181,7 +184,7 @@ def save_to_cache(cache_key: Tuple[str, str], data: Any, cache_dir: str = "../ca
         with open(cache_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
     except Exception as e:
-        print(f"Warning: Failed to save cache - {e}")
+        logger.warning(f"Failed to save cache: {e}")
 
 
 # =======================
@@ -269,7 +272,7 @@ def build_student_id_mapping(base_path_questions: str, base_path_annotations: st
         for p in range(page, page - numberOfPage, -1):
             if str(p) in pageToStudentId:
                 return pageToStudentId[str(p)]
-        print(f"Warning: {page} is not in pageToStudentId!")
+        logger.warning(f"{page} is not in pageToStudentId!")
         return None
 
     return pageToStudentId, numberOfPage, getStudentId

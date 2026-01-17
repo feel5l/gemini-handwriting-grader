@@ -49,13 +49,13 @@ async def moderate_grades_with_ai(
     Returns:
         List of moderation results with moderated marks
     """
-    logger.info(f"Starting moderation for {len(entries)} entries...")
+    logger.debug(f"Starting moderation for {len(entries)} entries...")
     
     # Import callback creator
     from ..caching_callback import create_moderation_cache_callbacks
     
     # Create caching callbacks
-    logger.info("Creating moderation cache callbacks...")
+    logger.debug("Creating moderation cache callbacks...")
     before_callback, after_callback = create_moderation_cache_callbacks(
         question_text=question_text,
         marking_scheme_text=marking_scheme_text,
@@ -65,7 +65,7 @@ async def moderate_grades_with_ai(
     )
     
     # Create moderation agent with caching callbacks
-    logger.info("Creating moderation agent with caching...")
+    logger.debug("Creating moderation agent with caching...")
     moderation_agent_cached = Agent(
         model="gemini-3-pro-preview",
         name="grading_moderator",
@@ -103,7 +103,7 @@ Responses:
 {entries_json}"""
 
     try:
-        logger.info("Preparing content for moderation agent...")
+        logger.debug("Preparing content for moderation agent...")
         content = types.Content(
             role="user",
             parts=[types.Part(text=prompt)]
@@ -119,7 +119,7 @@ Responses:
             logger=logger
         )
         
-        logger.info(f"Moderation agent completed, received {len(result.items)} items")
+        logger.info(f"Moderation completed: {len(result.items)} items processed")
         
         # Validate items length
         if len(result.items) != len(entries):
@@ -130,7 +130,7 @@ Responses:
             raise ValueError("Moderation item count mismatch")
         
         # Sanitize results
-        logger.info("Sanitizing moderation results...")
+        logger.debug("Sanitizing moderation results...")
         results = []
         for item in result.items:
             item.moderated_mark = max(
@@ -139,7 +139,7 @@ Responses:
             )
             results.append(item.model_dump())
         
-        logger.info(f"Moderation completed successfully for {len(results)} entries")
+        logger.debug(f"Moderation completed successfully for {len(results)} entries")
         return results
             
     except Exception as e:

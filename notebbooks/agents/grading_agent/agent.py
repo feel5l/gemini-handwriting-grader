@@ -167,12 +167,12 @@ async def grade_answer_with_ocr_and_ai(
     """
     import hashlib
     
-    logger.info("=" * 80)
-    logger.info("Starting grade_answer_with_ocr_and_ai")
-    logger.info(f"Image size: {len(image_data)} bytes")
-    logger.info(f"Total marks: {total_marks}")
-    logger.info(f"Question length: {len(question_text)} chars")
-    logger.info(f"Marking scheme length: {len(marking_scheme_text)} chars")
+    logger.debug("=" * 80)
+    logger.debug("Starting grade_answer_with_ocr_and_ai")
+    logger.debug(f"Image size: {len(image_data)} bytes")
+    logger.debug(f"Total marks: {total_marks}")
+    logger.debug(f"Question length: {len(question_text)} chars")
+    logger.debug(f"Marking scheme length: {len(marking_scheme_text)} chars")
     
     # Build the actual prompt that will be sent
     ocr_prompt = f"""<CONTEXT_FOR_GRADING>
@@ -191,21 +191,21 @@ Please extract the handwritten text from the provided image.
 (Note: The context above is for the subsequent grading step, 
 please focus on extracting the text in the image)."""
     
-    logger.info("Creating OCR caching callbacks...")
+    logger.debug("Creating OCR caching callbacks...")
     # Create OCR caching callbacks using the actual prompt
     before_callback_ocr, after_callback_ocr = create_ocr_cache_callbacks(
         prompt=ocr_prompt,
         image_data=image_data,
         model="gemini-3-flash-preview"
     )
-    logger.info("OCR caching callbacks created")
+    logger.debug("OCR caching callbacks created")
     
     # Create grading caching callbacks (for grading agent)
     # Note: We use a placeholder for submitted_answer since OCR will provide it
     image_hash = hashlib.sha256(image_data).hexdigest()
-    logger.info(f"Image hash: {image_hash[:16]}")
+    logger.debug(f"Image hash: {image_hash[:16]}")
     
-    logger.info("Creating grading caching callbacks...")
+    logger.debug("Creating grading caching callbacks...")
     before_callback_grading, after_callback_grading = create_grading_cache_callbacks(
         question_text=question_text,
         submitted_answer=f"[OCR_OUTPUT_{image_hash[:16]}]",  # Unique placeholder
@@ -213,9 +213,9 @@ please focus on extracting the text in the image)."""
         total_marks=total_marks,
         model="gemini-3-flash-preview"
     )
-    logger.info("Grading caching callbacks created")
+    logger.debug("Grading caching callbacks created")
     
-    logger.info("Creating OCR agent instance...")
+    logger.debug("Creating OCR agent instance...")
     # Create OCR agent with caching
     ocr_agent_instance = Agent(
         model="gemini-2.5-flash",
@@ -235,9 +235,9 @@ please focus on extracting the text in the image)."""
         before_model_callback=before_callback_ocr,
         after_model_callback=after_callback_ocr
     )
-    logger.info("OCR agent instance created")
+    logger.debug("OCR agent instance created")
     
-    logger.info("Creating grading agent instance...")
+    logger.debug("Creating grading agent instance...")
     # Create grading agent with caching
     grading_agent_instance = Agent(
         model="gemini-3-flash-preview",
@@ -267,9 +267,9 @@ please focus on extracting the text in the image)."""
         before_model_callback=before_callback_grading,
         after_model_callback=after_callback_grading
     )
-    logger.info("Grading agent instance created")
+    logger.debug("Grading agent instance created")
     
-    logger.info("Creating sequential agent...")
+    logger.debug("Creating sequential agent...")
     # Create Sequential Agent with both cached agents
     ocr_grading_agent = SequentialAgent(
         name="ocr_and_grading",
@@ -279,10 +279,10 @@ please focus on extracting the text in the image)."""
         ),
         sub_agents=[ocr_agent_instance, grading_agent_instance]
     )
-    logger.info("Sequential agent created")
+    logger.debug("Sequential agent created")
 
     try:
-        logger.info("Preparing content for sequential agent...")
+        logger.debug("Preparing content for sequential agent...")
         content = types.Content(
             role="user",
             parts=[
@@ -295,7 +295,7 @@ please focus on extracting the text in the image)."""
                 types.Part(text=ocr_prompt)  # Use the same prompt we cached with
             ]
         )
-        logger.info("Content prepared, starting sequential agent execution...")
+        logger.debug("Content prepared, starting sequential agent execution...")
         
         result = await run_agent_with_retry(
             agent=ocr_grading_agent,
@@ -306,10 +306,9 @@ please focus on extracting the text in the image)."""
             logger=logger
         )
         
-        logger.info("Sequential agent completed successfully")
-        logger.info(f"Extracted text length: {len(result.extracted_text) if result.extracted_text else 0}")
-        logger.info(f"Mark awarded: {result.mark}/{total_marks}")
-        logger.info(f"Similarity score: {result.similarity_score}")
+        logger.info(f"OCR+Grading completed: mark={result.mark}/{total_marks}")
+        logger.debug(f"Extracted text length: {len(result.extracted_text) if result.extracted_text else 0}")
+        logger.debug(f"Similarity score: {result.similarity_score}")
         
         # Handle empty OCR results explicitly
         if not result.extracted_text or result.extracted_text.strip() in ["", "No text found", "Image is blank"]:
@@ -323,13 +322,13 @@ please focus on extracting the text in the image)."""
         result.similarity_score = max(0.0, min(1.0, result.similarity_score))
         result.mark = max(0.0, min(float(total_marks), result.mark))
         
-        logger.info(f"Final result - Mark: {result.mark}, Reasoning: {result.reasoning[:100]}")
-        logger.info("=" * 80)
+        logger.debug(f"Final result - Mark: {result.mark}, Reasoning: {result.reasoning[:100]}")
+        logger.debug("=" * 80)
         return result
 
     except Exception as e:
         logger.error(f"OCR+Grading failed with exception: {e}", exc_info=True)
-        logger.info("=" * 80)
+        logger.debug("=" * 80)
         return GradingResult(
             extracted_text="",
             similarity_score=0,

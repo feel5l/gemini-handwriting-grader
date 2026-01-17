@@ -26,12 +26,17 @@ def setup_agent_environment(file_path: str) -> logging.Logger:
     # Setup path to import grading_utils (../../ relative to agent file)
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(file_path), "../../")))
 
+    # Get log level from environment variable (default: INFO)
+    log_level_str = os.getenv("AGENT_LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_str, logging.INFO)
+    
     # Configure logging
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s"
+        level=log_level,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
     )
     logger = logging.getLogger(os.path.basename(os.path.dirname(file_path)))
+    logger.setLevel(log_level)
 
     # Initialize environment and credentials
     try:
@@ -95,7 +100,7 @@ async def run_agent_with_retry(
 
     for attempt in range(max_retries):
         try:
-            logger.info(f"Attempt {attempt + 1}/{max_retries} for {app_name}")
+            logger.debug(f"Attempt {attempt + 1}/{max_retries} for {app_name}")
 
             session_id = f"session_{os.urandom(4).hex()}"
             await session_service.create_session(
@@ -110,7 +115,7 @@ async def run_agent_with_retry(
                 session_service=session_service,
             )
 
-            logger.info(f"Starting runner.run_async for {app_name}...")
+            logger.debug(f"Starting runner.run_async for {app_name}...")
             event_count = 0
             last_log_time = time.time()
             start_time = time.time()
@@ -127,24 +132,24 @@ async def run_agent_with_retry(
                         event_count += 1
                         current_time = time.time()
                         
-                        # Log event details
+                        # Log event details (DEBUG level)
                         event_type = type(event).__name__
                         logger.debug(f"Event {event_count}: {event_type}")
                         
-                        # Log progress every 10 seconds
-                        if current_time - last_log_time >= 10:
+                        # Log progress every 30 seconds (INFO level)
+                        if current_time - last_log_time >= 30:
                             elapsed = int(current_time - start_time)
-                            logger.info(f"Still processing {app_name}... {event_count} events, {elapsed}s elapsed")
+                            logger.info(f"Processing {app_name}... {event_count} events, {elapsed}s elapsed")
                             last_log_time = current_time
                         
                         # Check if this is a final response
                         if event.is_final_response():
-                            logger.info(f"Received final response event for {app_name}")
+                            logger.debug(f"Received final response event for {app_name}")
                 
                 # 600 second timeout for the entire operation (10 minutes for large documents)
                 await asyncio.wait_for(run_with_logging(), timeout=600.0)
                 elapsed = int(time.time() - start_time)
-                logger.info(f"Runner completed after {event_count} events in {elapsed}s")
+                logger.info(f"Runner completed: {app_name} ({event_count} events, {elapsed}s)")
                 
             except asyncio.TimeoutError:
                 elapsed = int(time.time() - start_time)

@@ -151,6 +151,25 @@ The `common.py` module provides shared utilities:
 
 ## Features
 
+### Log Level Configuration
+Control logging verbosity with the `AGENT_LOG_LEVEL` environment variable:
+
+```bash
+# In .env file
+AGENT_LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+```
+
+**Quick Reference:**
+- **DEBUG**: Most verbose - shows all operations, cache checks, event processing
+- **INFO**: Default - shows important operations, cache hits, completions
+- **WARNING**: Minimal - shows only warnings and errors
+- **ERROR**: Failures only
+
+**Documentation:**
+- Quick reference: `LOG_LEVEL_QUICK_REF.md`
+- Full review: `../../docs/LOG_LEVEL_REVIEW_COMPLETE.md`
+- Test script: `test_log_levels.py`
+
 ### Dynamic Agent Creation
 All agents are created dynamically with callback-based caching:
 - Agents are instantiated on-demand with specific configurations
@@ -259,9 +278,11 @@ python -c "from notebbooks.agents import *"
 ## Documentation
 
 For detailed information, see:
-- `docs/AGENT_REFACTORING_GUIDE.md` - Coding standards and patterns
-- `docs/COMPLETE_AGENT_REFACTORING.md` - Comprehensive documentation
-- `docs/REFACTORING_COMPLETE.md` - Quick reference
+- `README.md` (this file) - Agent overview and usage
+- `CACHING_REFACTOR.md` - Caching implementation details
+- `LOG_LEVEL_QUICK_REF.md` - Log level configuration
+- `../../docs/COMPLETE_AGENT_REFACTORING.md` - Complete refactoring documentation
+- `../../docs/LOG_LEVEL_REVIEW_COMPLETE.md` - Log level implementation review
 
 ## Requirements
 
