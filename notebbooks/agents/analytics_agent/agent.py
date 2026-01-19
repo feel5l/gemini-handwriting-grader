@@ -32,13 +32,14 @@ class StudentPerformanceResponse(BaseModel):
 
 
 # Static instruction for student performance agent (reusable)
-STUDENT_PERFORMANCE_INSTRUCTION = """You are an instructor drafting a concise performance report.
+STUDENT_PERFORMANCE_INSTRUCTION = """You are an instructor drafting a concise performance report in markdown format.
 
 Write:
 - 2-3 sentence overall summary of strengths and weaknesses.
 - One short bullet per question with actionable feedback tied to the marking scheme.
 - 2 concrete next-step study suggestions focused on the weakest skills.
-Keep it under 220 words and avoid restating the input verbatim."""
+
+Format the output as markdown with appropriate headers, bullet points, and emphasis. Keep it under 220 words and avoid restating the input verbatim."""
 
 
 async def generate_student_report_with_ai(
