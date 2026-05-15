@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gemini Handwriting Grader</title>
+  <style>
+    :root {
+      --primary: #1a73e8;
+      --accent: #34a853;
+      --bg: #f8f9fa;
+      --card: #ffffff;
+      --text: #202124;
+      --muted: #5f6368;
+      --border: #dadce0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Google Sans", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
+      color: #fff;
+      text-align: center;
+      padding: 80px 20px 60px;
+    }
+    .hero img.logo {
+      width: 90px;
+      height: 90px;
+      border-radius: 18px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.3);
+      margin-bottom: 24px;
+      background: rgba(255,255,255,.15);
+      padding: 10px;
+    }
+    .hero h1 { font-size: 2.6rem; font-weight: 700; margin-bottom: 14px; }
+    .hero p  { font-size: 1.15rem; max-width: 640px; margin: 0 auto 32px; opacity: .9; }
+
+    .btn {
+      display: inline-block;
+      padding: 13px 28px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: opacity .2s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-white  { background: #fff; color: var(--primary); margin-right: 12px; }
+    .btn-outline { border: 2px solid #fff; color: #fff; }
+
+    /* ── Layout ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+
+    /* ── Section ── */
+    .section { padding: 60px 20px; }
+    .section-title {
+      text-align: center;
+      font-size: 1.9rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .section-subtitle {
+      text-align: center;
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 620px;
+      margin: 0 auto 44px;
+    }
+
+    /* ── Cards grid ── */
+    .grid { display: grid; gap: 24px; }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+      transition: box-shadow .2s;
+    }
+    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+    .card .icon { font-size: 2rem; margin-bottom: 14px; }
+    .card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; }
+    .card p { color: var(--muted); font-size: .95rem; }
+
+    /* ── Steps ── */
+    .steps { counter-reset: step; }
+    .step {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 24px 22px 72px;
+      position: relative;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .step::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+      font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .step h3 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+    .step p  { color: var(--muted); font-size: .9rem; }
+
+    /* ── Badge list ── */
+    .badge-list { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 20px; }
+    .badge {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: .9rem;
+      color: var(--muted);
+    }
+
+    /* ── CTA ── */
+    .cta {
+      background: linear-gradient(135deg, #34a853 0%, #1e7e34 100%);
+      color: #fff;
+      text-align: center;
+      padding: 60px 20px;
+    }
+    .cta h2 { font-size: 2rem; font-weight: 700; margin-bottom: 14px; }
+    .cta p  { font-size: 1.05rem; max-width: 560px; margin: 0 auto 30px; opacity: .9; }
+    .btn-cta { background: #fff; color: #1e7e34; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 30px 20px;
+      color: var(--muted);
+      font-size: .9rem;
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--primary); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<!-- ── Hero ── -->
+<div class="hero">
+  <div class="container">
+    <img class="logo" src="../images/logo.png" alt="Gemini Handwriting Grader logo"
+         onerror="this.style.display='none'" />
+    <h1>Gemini Handwriting Grader</h1>
+    <p>
+      An AI-powered grading system that transforms the traditional, time-consuming
+      grading process into an efficient, automated workflow using Google's Gemini AI.
+    </p>
+    <a href="https://github.com/feel5l/gemini-handwriting-grader" class="btn btn-white">
+      View on GitHub
+    </a>
+    <a href="https://github.com/feel5l/gemini-handwriting-grader#-workflow" class="btn btn-outline">
+      Learn More
+    </a>
+  </div>
+</div>
+
+<!-- ── Why this system ── -->
+<div class="section" style="background:#fff;">
+  <div class="container">
+    <h2 class="section-title">Why This System?</h2>
+    <p class="section-subtitle">
+      Traditional grading is physically exhausting and inconsistent. This system fixes that.
+    </p>
+    <div class="grid grid-3">
+      <div class="card">
+        <div class="icon">🤖</div>
+        <h3>AI-Powered Grading</h3>
+        <p>Advanced OCR and contextual understanding via Google Gemini for accurate, consistent scoring.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📊</div>
+        <h3>Deep Analytics</h3>
+        <p>Individual reports, class-level analytics, and visual charts to drive data-based decisions.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📄</div>
+        <h3>Professional Output</h3>
+        <p>Excel, Word, PowerPoint, and PDF reports ready for stakeholders — generated automatically.</p>
+      </div>
+      <div class="card">
+        <div class="icon">⚡</div>
+        <h3>Intelligent Caching</h3>
+        <p>Avoid redundant API calls. Resumable processing with organised cache structure.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🛡️</div>
+        <h3>Production-Ready</h3>
+        <p>Robust error handling, validation at every step, and graceful degradation on failures.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🌐</div>
+        <h3>Static Review UI</h3>
+        <p>The generated marking interface works entirely in the browser — host it anywhere, including GitHub Pages.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Workflow ── -->
+<div class="section">
+  <div class="container">
+    <h2 class="section-title">Step-by-Step Workflow</h2>
+    <p class="section-subtitle">Run seven Jupyter notebooks in sequence to go from scanned scripts to final reports.</p>
+    <div class="grid grid-2 steps">
+      <div class="step">
+        <h3>Generate Answer Sheets</h3>
+        <p>Create personalised, print-ready answer sheets for each student from the name list.</p>
+      </div>
+      <div class="step">
+        <h3>Extract Marking Scheme</h3>
+        <p>AI-parses the marking scheme Word document into a structured, validated Excel workbook.</p>
+      </div>
+      <div class="step">
+        <h3>Define Answer Regions</h3>
+        <p>Intelligent bounding-box detection identifies where students write their answers.</p>
+      </div>
+      <div class="step">
+        <h3>AI-Powered Scoring</h3>
+        <p>Gemini OCR reads handwriting and grades each answer against the marking scheme.</p>
+      </div>
+      <div class="step">
+        <h3>Review &amp; Validate</h3>
+        <p>Interactive web interface lets teachers review, override, and finalise every mark — works offline and on GitHub Pages.</p>
+      </div>
+      <div class="step">
+        <h3>Generate Reports</h3>
+        <p>Modular notebooks produce Excel scores, annotated PDFs, Word and PowerPoint analytics.</p>
+      </div>
+      <div class="step">
+        <h3>Email Distribution</h3>
+        <p>Send personalised score emails with marked scripts and AI performance insights to every student.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tech stack ── -->
+<div class="section" style="background:#fff;">
+  <div class="container">
+    <h2 class="section-title">Built With</h2>
+    <div class="badge-list">
+      <span class="badge">🐍 Python 3.8+</span>
+      <span class="badge">🤖 Google Gemini AI</span>
+      <span class="badge">📓 Jupyter Notebooks</span>
+      <span class="badge">🐼 pandas</span>
+      <span class="badge">📄 pypdf 6.5+</span>
+      <span class="badge">📝 python-docx</span>
+      <span class="badge">📊 python-pptx</span>
+      <span class="badge">📈 matplotlib / seaborn</span>
+      <span class="badge">👁️ OpenCV</span>
+      <span class="badge">🌐 Flask</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── CTA ── -->
+<div class="cta">
+  <div class="container">
+    <h2>Get Started Today</h2>
+    <p>Open in GitHub Codespaces for a zero-install cloud environment, or clone locally.</p>
+    <a href="https://github.com/feel5l/gemini-handwriting-grader" class="btn btn-cta">
+      ⭐ Star on GitHub
+    </a>
+  </div>
+</div>
+
+<!-- ── Footer ── -->
+<footer>
+  <p>
+    Built by the Higher Diploma in Cloud and Data Centre Administration Development Team ·
+    <a href="https://github.com/feel5l/gemini-handwriting-grader">GitHub</a>
+  </p>
+</footer>
+
+</body>
+</html>

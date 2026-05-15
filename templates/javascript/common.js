@@ -1,3 +1,5 @@
+const buildStorageKey = (suffix) => window.location.href.split('?')[0] + '#' + suffix;
+
 const saveMark = ()=>{
     let marks = $('.mark').map(function(){
         let overridedMark = $("#"+ this.id + "-locked").html();
@@ -5,26 +7,50 @@ const saveMark = ()=>{
         return {id: this.id.replace('mark-',''), mark: $(this).val(), overridedMark: overridedMark};
     }).get(); 
 
-    data = {"type":"mark","data": marks};
+    try {
+        localStorage.setItem(buildStorageKey('marks'), JSON.stringify(marks));
+        console.log("Mark saved in localStorage!");
+    } catch(e) {
+        console.error("Failed to save mark to localStorage:", e);
+    }
+
+    // Also attempt server-side save (works when running with Flask; silently ignored on static hosting)
     $.ajax({                    
-        data: JSON.stringify(data),
+        data: JSON.stringify({"type":"mark","data": marks}),
         type: "POST",
         dataType: "json",
         contentType: "application/json;charset=utf-8",
         success: function(returnData){
             console.log("Mark saved in server!");
         },
-        error: function(xhr, ajaxOptions, thrownError){
-            console.error(xhr.status);
-            console.error(thrownError);
-            alert(thrownError);
+        error: function(){
+            // Server not available (e.g. GitHub Pages static hosting) – localStorage save is sufficient
         }
     });                
     return marks;
 };
 
 
-const loadMark = (callback)=>{               
+const loadMark = (callback)=>{
+    // Try localStorage first (works on both static and dynamic hosting)
+    const stored = localStorage.getItem(buildStorageKey('marks'));
+    if (stored) {
+        try {
+            const returnData = JSON.parse(stored);
+            returnData.forEach(element => {
+                $("#mark-"+ element.id).val(element.mark);
+                if(element.overridedMark)
+                    $("#mark-"+ element.id + "-locked").html(element.overridedMark);
+            });
+            console.log("Loaded mark from localStorage");
+            if(callback) callback();
+            return;
+        } catch(e) {
+            console.warn("Failed to parse marks from localStorage:", e);
+        }
+    }
+
+    // Fall back to static mark.json (present after notebooks are run)
     $.ajax({
         url: $(location).attr('href').replace('index.html',"mark.json"),                   
         type: "GET",
@@ -36,11 +62,11 @@ const loadMark = (callback)=>{
                 if(element.overridedMark)
                     $("#mark-"+ element.id + "-locked").html(element.overridedMark);
             });
-            console.log("loaded Mark");   
+            console.log("Loaded mark from mark.json");
             if(callback) callback();
         },
-        error: function(xhr, ajaxOptions, thrownError){
-            console.log("Cannot reload Mark"); 
+        error: function(){
+            console.log("No saved mark found");
             if(callback) callback();
         }
     });
@@ -55,32 +81,63 @@ const convertFormToJSON = form => {
     }, {});
 }
 
-const saveControlForm = () => {                
-    data = {"type":"control", "data": convertFormToJSON()};
+const saveControlForm = () => {
+    const formData = convertFormToJSON();
+    try {
+        localStorage.setItem(buildStorageKey('control'), JSON.stringify(formData));
+        console.log("Control form saved in localStorage!");
+    } catch(e) {
+        console.error("Failed to save control form to localStorage:", e);
+    }
+
+    // Also attempt server-side save (works when running with Flask; silently ignored on static hosting)
     $.ajax({                    
-        data: JSON.stringify(data),
+        data: JSON.stringify({"type":"control", "data": formData}),
         type: "POST",
         dataType: "json",
         contentType: "application/json;charset=utf-8",
         success: function(returnData){
             console.log("Control Form saved in server!");
         },
-        error: function(xhr, ajaxOptions, thrownError){
-            console.error(xhr.status);
-            console.error(thrownError);
-            alert(thrownError);
+        error: function(){
+            // Server not available (e.g. GitHub Pages static hosting) – localStorage save is sufficient
         }
     }); 
 };
 
 const loadControlForm = (callback) =>{
+    // Try localStorage first (works on both static and dynamic hosting)
+    const stored = localStorage.getItem(buildStorageKey('control'));
+    if (stored) {
+        try {
+            const returnData = JSON.parse(stored);
+            for (let i in returnData) {
+                $('#'+i).val(returnData[i]);
+            }
+            if(returnData.fullMark && returnData.granularity) {
+                $('.mark')
+                    .attr("max",returnData.fullMark)
+                    .attr("step",returnData.granularity);
+            }
+            if(returnData.regenerate == "on"){
+                $("#regenerate").attr("checked", "checked");
+            }
+            console.log("Loaded control form from localStorage");
+            if(callback) callback();
+            return;
+        } catch(e) {
+            console.warn("Failed to parse control form from localStorage:", e);
+        }
+    }
+
+    // Fall back to static control.json (present after notebooks are run)
     $.ajax({
         url: $(location).attr('href').replace('index.html',"control.json"),                   
         type: "GET",
         dataType: "json",
         contentType: "application/json;charset=utf-8",
         success: function(returnData){
-            console.log("loaded control form");   
+            console.log("Loaded control form from control.json");
             for (let i in returnData) {                            
                 $('#'+i).val(returnData[i]);        
             }
@@ -95,8 +152,8 @@ const loadControlForm = (callback) =>{
             }
             if(callback) callback();
         },
-        error: function(xhr, ajaxOptions, thrownError){
-            console.log("Cannot reload control form");
+        error: function(){
+            console.log("No saved control form found");
             if(callback) callback();
         }
     });
